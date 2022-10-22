@@ -51,10 +51,6 @@ echo "FUEL_MESSAGE_PORTAL_CONTRACT_ADDRESS is ${FUEL_MESSAGE_PORTAL_CONTRACT_ADD
 echo "L1_CHAIN_HTTP is ${L1_CHAIN_HTTP}"
 
 # start the Fuel client
-#    --relayer ${L1_CHAIN_HTTP} \
-#    --relayer-v2-listening-contracts ${FUEL_MESSAGE_PORTAL_CONTRACT_ADDRESS} \
-#    --relayer-eth-chain-id 31337 \
-#    --relayer-da-finalization 0 \
 echo "Starting Fuel node."
 exec /root/fuel-core run \
     --ip ${FUEL_IP} \
@@ -63,4 +59,7 @@ exec /root/fuel-core run \
     --utxo-validation \
     --predicates \
     --vm-backtrace \
+    --relayer ${L1_CHAIN_HTTP} \
+    --relayer-v2-listening-contracts ${FUEL_MESSAGE_PORTAL_CONTRACT_ADDRESS} \
+    --relayer-da-finalization 0 \
     --chain ./chainConfig.json

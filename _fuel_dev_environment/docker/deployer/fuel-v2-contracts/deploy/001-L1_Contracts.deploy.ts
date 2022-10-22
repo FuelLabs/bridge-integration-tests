@@ -4,6 +4,7 @@ const deployFn: DeployFunction = async (hre) => {
   const { deploy } = hre.deployments;
   const { deployer } = await hre.getNamedAccounts();
   const deployerSigner = await hre.ethers.getSigner(deployer);
+  const poaSigner = '0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc';
 
   // Deploy libraries
   let binaryMerkleTreeLib = await deploy("BinaryMerkleTreeLib", {
@@ -13,11 +14,19 @@ const deployFn: DeployFunction = async (hre) => {
     log: true,
   });
 
+  // Deploy consensus contracts
+  let fuelSidechainConsensus = await deploy("FuelSidechainConsensus", {
+    contract: "FuelSidechainConsensus",
+    from: deployer,
+    args: [poaSigner],
+    log: true,
+  });
+
   // Deploy messaging contracts
   let fuelMessagePortal = await deploy("FuelMessagePortal", {
     contract: "FuelMessagePortal",
     from: deployer,
-    args: [],
+    args: [fuelSidechainConsensus.address],
     libraries: {
       BinaryMerkleTree: binaryMerkleTreeLib.address,
     },

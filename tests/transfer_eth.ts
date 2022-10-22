@@ -1,6 +1,7 @@
 import chai from 'chai';
 import { solidity } from 'ethereum-waffle';
 import { ethers } from 'ethers';
+import { AbstractAddress } from 'fuels';
 import { TestEnvironment, setupEnvironment } from '../scripts/setup';
 import { fuels_parseEther, fuels_formatEther } from '../scripts/utils';
 
@@ -16,7 +17,7 @@ describe('Transferring ETH', async () => {
 	});
 
 	describe('Send ETH to Fuel', async () => {
-		let fuelETHReceiver: string;
+		let fuelETHReceiver: AbstractAddress;
 		let fuelETHReceiverBalance: string;
 		before(async () => {
 			fuelETHReceiver = env.fuel.signers[0].address;
@@ -29,7 +30,7 @@ describe('Transferring ETH', async () => {
 		it('Send ETH via MessagePortal', async () => {
 			// use the FuelMessagePortal to directly send ETH which should be immediately spendable
 			await expect(
-				env.eth.fuelMessagePortal.sendETH(fuelETHReceiver, {
+				env.eth.fuelMessagePortal.sendETH(fuelETHReceiver.toHexString(), {
 					value: ethers.utils.parseEther("0.1")
 				})
 			).to.not.be.reverted;

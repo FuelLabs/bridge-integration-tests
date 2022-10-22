@@ -1,11 +1,13 @@
 /// @dev The Fuel testing setup.
 /// A set of useful helper methods for setting up the integration test environment.
 import axios from 'axios';
-import { ethers, Signer as EthSigner } from 'ethers';
+import { BigNumber, ethers, Signer as EthSigner } from 'ethers';
 import { Provider as EthProvider } from '@ethersproject/providers';
 import { Provider as FuelProvider } from '@fuel-ts/providers';
 import { Wallet as FuelWallet } from '@fuel-ts/wallet';
 import { fuels_parseEther, fuels_formatEther } from '../scripts/utils';
+import { FuelSidechainConsensus } from '../fuel-v2-contracts/FuelSidechainConsensus.d';
+import { FuelSidechainConsensus__factory } from '../fuel-v2-contracts/factories/FuelSidechainConsensus__factory';
 import { FuelMessagePortal } from '../fuel-v2-contracts/FuelMessagePortal.d';
 import { FuelMessagePortal__factory } from '../fuel-v2-contracts/factories/FuelMessagePortal__factory';
 import { L1ERC20Gateway } from '../fuel-v2-contracts/L1ERC20Gateway.d';
@@ -28,6 +30,7 @@ export interface SetupOptions {
 export interface TestEnvironment {
 	eth: {
 		provider: EthProvider;
+		fuelSidechainConsensus: FuelSidechainConsensus;
 		fuelMessagePortal: FuelMessagePortal;
 		l1ERC20Gateway: L1ERC20Gateway;
 		deployer: EthSigner;
@@ -61,19 +64,19 @@ export async function setupEnvironment(opts: SetupOptions): Promise<TestEnvironm
 	}
 	const fuel_deployer = new FuelWallet(pk_fuel_deployer, fuel_provider);
 	const fuel_deployerBalance = await fuel_deployer.getBalance();
-	if(fuel_deployerBalance < fuels_parseEther("5")) {
+	if(fuel_deployerBalance.lt(fuels_parseEther("5"))) {
 		throw new Error("Fuel deployer balance is very low (" + fuels_formatEther(fuel_deployerBalance) + "ETH)");
 	}
 	const fuel_signer1 = new FuelWallet(pk_fuel_signer1, fuel_provider);
 	const fuel_signer1Balance = await fuel_signer1.getBalance();
-	if(fuel_signer1Balance < fuels_parseEther("1")) {
-		const tx = await fuel_deployer.transfer(fuel_signer1.address, fuels_parseEther("1"));
+	if(fuel_signer1Balance.lt(fuels_parseEther("1"))) {
+		const tx = await fuel_deployer.transfer(fuel_signer1.address, fuels_parseEther("1").toHex());
 		await tx.wait();
 	}
 	const fuel_signer2 = new FuelWallet(pk_fuel_signer2, fuel_provider);
 	const fuel_signer2Balance = await fuel_signer2.getBalance();
-	if(fuel_signer2Balance < fuels_parseEther("1")) {
-		const tx = await fuel_deployer.transfer(fuel_signer2.address, fuels_parseEther("1"));
+	if(fuel_signer2Balance.lt(fuels_parseEther("1"))) {
+		const tx = await fuel_deployer.transfer(fuel_signer2.address, fuels_parseEther("1").toHex());
 		await tx.wait();
 	}
 
@@ -115,6 +118,10 @@ export async function setupEnvironment(opts: SetupOptions): Promise<TestEnvironm
 	} catch(e) {
 		throw new Error("Failed to connect to the deployer at (" + http_deployer + "). Are you sure it's running?");
 	}
+	if(!deployerAddresses.FuelSidechainConsensus) {
+		throw new Error("Failed to get FuelSidechainConsensus address from deployer");
+	}
+	const eth_fuelSidechainConsensusAddress: string = deployerAddresses.FuelSidechainConsensus;
 	if(!deployerAddresses.FuelMessagePortal) {
 		throw new Error("Failed to get FuelMessagePortal address from deployer");
 	}
@@ -125,6 +132,7 @@ export async function setupEnvironment(opts: SetupOptions): Promise<TestEnvironm
 	const eth_l1ERC20GatewayAddress: string = deployerAddresses.L1ERC20Gateway;
 
 	// Connect existing contracts
+	let eth_fuelSidechainConsensus: FuelSidechainConsensus = FuelSidechainConsensus__factory.connect(eth_fuelSidechainConsensusAddress, eth_signer1);
 	let eth_fuelMessagePortal: FuelMessagePortal = FuelMessagePortal__factory.connect(eth_fuelMessagePortalAddress, eth_signer1);
 	let eth_l1ERC20Gateway: L1ERC20Gateway = L1ERC20Gateway__factory.connect(eth_l1ERC20GatewayAddress, eth_signer1);
 
@@ -132,6 +140,7 @@ export async function setupEnvironment(opts: SetupOptions): Promise<TestEnvironm
 	return {
 		eth: {
 			provider: eth_provider,
+			fuelSidechainConsensus: eth_fuelSidechainConsensus,
 			fuelMessagePortal: eth_fuelMessagePortal,
 			l1ERC20Gateway: eth_l1ERC20Gateway,
 			deployer: eth_deployer,

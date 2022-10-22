@@ -35,6 +35,8 @@ echo "Deploying contracts. Deployment command:"
 echo "$DEPLOY_CMD"
 eval "$DEPLOY_CMD"
 
+echo "Building addresses.json."
+
 # First, create two files. One of them contains a list of addresses, the other contains a list of contract names.
 find "./deployments/$CONTRACTS_TARGET_NETWORK" -maxdepth 1 -name '*.json' | xargs cat | jq -r '.address' > addresses.txt
 find "./deployments/$CONTRACTS_TARGET_NETWORK" -maxdepth 1 -name '*.json' | sed -e "s/.\/deployments\/$CONTRACTS_TARGET_NETWORK\///g" | sed -e 's/.json//g' > filenames.txt
