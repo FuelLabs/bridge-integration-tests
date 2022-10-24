@@ -51,11 +51,12 @@ echo "FUEL_MESSAGE_PORTAL_CONTRACT_ADDRESS is ${FUEL_MESSAGE_PORTAL_CONTRACT_ADD
 echo "L1_CHAIN_HTTP is ${L1_CHAIN_HTTP}"
 
 # start the Fuel client
+#--db-path ${FUEL_DB_PATH}
 echo "Starting Fuel node."
 exec /root/fuel-core run \
     --ip ${FUEL_IP} \
     --port ${FUEL_PORT} \
-    --db-path ${FUEL_DB_PATH} \
+    --db-type in-memory \
     --utxo-validation \
     --predicates \
     --vm-backtrace \
