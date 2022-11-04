@@ -12,7 +12,7 @@ use fuels::signers::fuel_crypto::SecretKey;
 
 const CLIENT_CONNECT_POLL_MILLIS: u64 = 1000;
 const MONITOR_POLL_MILLIS: u64 = 500;
-const CONTRACT_MESSAGE_MIN_GAS: u64 = 15_000_000; //TODO: 1_200_000;
+const CONTRACT_MESSAGE_MIN_GAS: u64 = 30_000_000; //TODO: 1_200_000;
 const CONTRACT_MESSAGE_SCRIPT_BINARY: &str = "./bridge-message-predicates/contract_message_script.bin";
 const CONTRACT_MESSAGE_PREDICATE_BINARY: &str = "./bridge-message-predicates/contract_message_predicate.bin";
 
@@ -76,7 +76,7 @@ async fn monitor(provider: &Provider, wallet: &WalletUnlocked) {
                 let messages: Vec<Message> = messages.into_iter().filter(|message| message.fuel_block_spend.is_none()).collect();
                 for m in messages.iter() {
                     let receipts = execute_message(wallet, m).await;
-                    dbg!(receipts);
+                    //dbg!(receipts);//////////////////////////////////////////////////////////////////////////////////////////////////////////
                 }
             },
             Err(e) => {
