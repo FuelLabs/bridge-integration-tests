@@ -132,9 +132,9 @@ export async function setupEnvironment(opts: SetupOptions): Promise<TestEnvironm
 	const eth_l1ERC20GatewayAddress: string = deployerAddresses.L1ERC20Gateway;
 
 	// Connect existing contracts
-	let eth_fuelSidechainConsensus: FuelSidechainConsensus = FuelSidechainConsensus__factory.connect(eth_fuelSidechainConsensusAddress, eth_signer1);
-	let eth_fuelMessagePortal: FuelMessagePortal = FuelMessagePortal__factory.connect(eth_fuelMessagePortalAddress, eth_signer1);
-	let eth_l1ERC20Gateway: L1ERC20Gateway = L1ERC20Gateway__factory.connect(eth_l1ERC20GatewayAddress, eth_signer1);
+	let eth_fuelSidechainConsensus: FuelSidechainConsensus = FuelSidechainConsensus__factory.connect(eth_fuelSidechainConsensusAddress, eth_deployer);
+	let eth_fuelMessagePortal: FuelMessagePortal = FuelMessagePortal__factory.connect(eth_fuelMessagePortalAddress, eth_deployer);
+	let eth_l1ERC20Gateway: L1ERC20Gateway = L1ERC20Gateway__factory.connect(eth_l1ERC20GatewayAddress, eth_deployer);
 
 	// Return the Fuel harness object
 	return {

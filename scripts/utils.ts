@@ -1,7 +1,7 @@
 /// @dev The Fuel testing utils.
 /// A set of useful helper methods for the integration test environment.
 import { ethers, BigNumber } from 'ethers';
-import { Provider as FuelProvider, BN, AbstractAddress } from 'fuels';
+import { Provider as FuelProvider, BN, AbstractAddress, BigNumberish, TransactionRequestLike, TransactionResponse, MAX_GAS_PER_TX, ScriptTransactionRequest, CoinQuantityLike, AbstractWallet, Wallet, OutputType, TransactionRequestOutput } from 'fuels';
 
 // Constants
 const ETHEREUM_ETH_DECIMALS: number = 18;
@@ -23,12 +23,14 @@ export function fuels_formatEther(ether: BN): string {
 }
 
 // Wait until a message is present in the fuel client
-export async function fuels_waitForMessage(provider: FuelProvider, recipient: AbstractAddress, nonce: BN, timeoutMS?: number): Promise<boolean> {
+export async function fuels_waitForMessage(provider: FuelProvider, recipient: AbstractAddress, nonce: BN, timeout: number, waitForExecution: boolean = false): Promise<boolean> {
 	let startTime = (new Date()).getTime();
-	while (timeoutMS == undefined || (new Date()).getTime() - startTime < timeoutMS) {
+	while ((new Date()).getTime() - startTime < timeout) {
 		let messages = await provider.getMessages(recipient, { first: 1000 });
 		for (let message of messages) {
 			if (message.nonce.eq(nonce)) {
+				//TODO: need to check fuel spent state rather than assume message execution within a time limit
+				if(waitForExecution) await delay(3000);
 				return true;
 			}
 		}
