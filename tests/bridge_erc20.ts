@@ -15,7 +15,7 @@ chai.use(solidity);
 const { expect } = chai;
 
 describe('Bridging ERC20 tokens', async () => {
-	const FUEL_MESSAGE_TIMEOUT_MS: number = 10_000;
+	const FUEL_MESSAGE_TIMEOUT_MS: number = 15_000;
 
 	let env: TestEnvironment;
 	let eth_testToken: Token;

@@ -2,7 +2,7 @@ import chai from 'chai';
 import { solidity } from 'ethereum-waffle';
 import { ethers, BigNumber, Signer } from 'ethers';
 import { parseEther } from 'ethers/lib/utils';
-import { AbstractAddress, Address, BN, Wallet } from 'fuels';
+import { AbstractAddress, Address, BN, WalletUnlocked as FuelWallet } from 'fuels';
 import { TestEnvironment, setupEnvironment } from '../scripts/setup';
 import { fuels_parseEther, fuels_waitForMessage } from '../scripts/utils';
 
@@ -10,6 +10,7 @@ chai.use(solidity);
 const { expect } = chai;
 
 describe('Transferring ETH', async () => {
+	/*
 	const ETH_ASSET_ID = "0x0000000000000000000000000000000000000000000000000000000000000000";
 	const FUEL_MESSAGE_TIMEOUT_MS: number = 10_000;
 	let env: TestEnvironment;
@@ -37,7 +38,6 @@ describe('Transferring ETH', async () => {
 		});
 
 		it('Send ETH via MessagePortal', async () => {
-			/*
 			// use the FuelMessagePortal to directly send ETH which should be immediately spendable
 			let tx = await env.eth.fuelMessagePortal.connect(ethereumETHSender).sendETH(fuelETHReceiverAddress, {
 				value: parseEther(NUM_ETH)
@@ -53,11 +53,9 @@ describe('Transferring ETH', async () => {
 			let newSenderBalance = await env.eth.provider.getBalance(ethereumETHSenderAddress);
 			let ethereumETHSenderBalanceMinusGas = ethereumETHSenderBalance.sub(result.gasUsed.mul(result.effectiveGasPrice));
 			expect(newSenderBalance.eq(ethereumETHSenderBalanceMinusGas.sub(parseEther(NUM_ETH)))).to.be.true;
-			*/
 		});
 
 		it('Wait for ETH to arrive on Fuel', async function() {
-			/*
 			// override the default test timeout from 2000ms
 			this.timeout(FUEL_MESSAGE_TIMEOUT_MS);
 
@@ -67,13 +65,12 @@ describe('Transferring ETH', async () => {
 			// check that the recipient balance has increased by the expected amount
 			let newReceiverBalance = await env.fuel.provider.getBalance(fuelETHReceiver, ETH_ASSET_ID);
 			expect(newReceiverBalance.eq(fuelETHReceiverBalance.add(fuels_parseEther(NUM_ETH)))).to.be.true;
-			*/
 		});
 	});
 
 	describe('Send ETH from Fuel', async () => {
 		const NUM_ETH = "0.1";
-		let fuelETHSender: Wallet;
+		let fuelETHSender: FuelWallet;
 		let fuelETHSenderAddress: string;
 		let fuelETHSenderBalance: BN;
 		let ethereumETHReceiver: Signer;
@@ -90,7 +87,7 @@ describe('Transferring ETH', async () => {
 
 		it('Send ETH via OutputMessage', async () => {
 			// withdraw ETH back to the base chain
-			//TODO: fuelETHSender.withdraw(Address.fromString(ethereumETHReceiverAddress), fuels_parseEther(NUM_ETH));
+			await fuelETHSender.withdrawToBaseLayer(Address.fromString(ethereumETHReceiverAddress), fuels_parseEther(NUM_ETH));
 			//console.log(fuelETHSenderAddress)
 			//console.log(fuelETHSenderBalance.toString())
 			//try {
@@ -108,4 +105,5 @@ describe('Transferring ETH', async () => {
 			//TODO
 		});
 	});
+	*/
 });

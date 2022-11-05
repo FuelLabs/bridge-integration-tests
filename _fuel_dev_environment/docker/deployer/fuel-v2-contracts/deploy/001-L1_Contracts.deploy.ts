@@ -4,7 +4,7 @@ const deployFn: DeployFunction = async (hre) => {
   const { deploy } = hre.deployments;
   const { deployer } = await hre.getNamedAccounts();
   const deployerSigner = await hre.ethers.getSigner(deployer);
-  const poaSigner = '0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc';
+  const poaSigner = '0x48abc67B8Da0B4c9C544299cB24028F07cF2595A'; //pk:0xa449b1ffee0e2205fa924c6740cc48b3b473aa28587df6dab12abc245d1f5298
 
   // Deploy libraries
   let binaryMerkleTreeLib = await deploy("BinaryMerkleTreeLib", {

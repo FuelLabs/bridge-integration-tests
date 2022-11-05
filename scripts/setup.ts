@@ -4,7 +4,7 @@ import axios from 'axios';
 import { BigNumber, ethers, Signer as EthSigner } from 'ethers';
 import { Provider as EthProvider } from '@ethersproject/providers';
 import { Provider as FuelProvider } from '@fuel-ts/providers';
-import { Wallet as FuelWallet } from '@fuel-ts/wallet';
+import { Wallet, WalletUnlocked as FuelWallet } from '@fuel-ts/wallet';
 import { fuels_parseEther, fuels_formatEther } from '../scripts/utils';
 import { FuelSidechainConsensus } from '../fuel-v2-contracts/FuelSidechainConsensus.d';
 import { FuelSidechainConsensus__factory } from '../fuel-v2-contracts/factories/FuelSidechainConsensus__factory';
@@ -62,18 +62,18 @@ export async function setupEnvironment(opts: SetupOptions): Promise<TestEnvironm
 	} catch(e) {
 		throw new Error("Failed to connect to the Fuel client at (" + http_fuel_client + "). Are you sure it's running?");
 	}
-	const fuel_deployer = new FuelWallet(pk_fuel_deployer, fuel_provider);
+	const fuel_deployer = Wallet.fromPrivateKey(pk_fuel_deployer, fuel_provider);
 	const fuel_deployerBalance = await fuel_deployer.getBalance();
 	if(fuel_deployerBalance.lt(fuels_parseEther("5"))) {
 		throw new Error("Fuel deployer balance is very low (" + fuels_formatEther(fuel_deployerBalance) + "ETH)");
 	}
-	const fuel_signer1 = new FuelWallet(pk_fuel_signer1, fuel_provider);
+	const fuel_signer1 = Wallet.fromPrivateKey(pk_fuel_signer1, fuel_provider);
 	const fuel_signer1Balance = await fuel_signer1.getBalance();
 	if(fuel_signer1Balance.lt(fuels_parseEther("1"))) {
 		const tx = await fuel_deployer.transfer(fuel_signer1.address, fuels_parseEther("1").toHex());
 		await tx.wait();
 	}
-	const fuel_signer2 = new FuelWallet(pk_fuel_signer2, fuel_provider);
+	const fuel_signer2 = Wallet.fromPrivateKey(pk_fuel_signer2, fuel_provider);
 	const fuel_signer2Balance = await fuel_signer2.getBalance();
 	if(fuel_signer2Balance.lt(fuels_parseEther("1"))) {
 		const tx = await fuel_deployer.transfer(fuel_signer2.address, fuels_parseEther("1").toHex());

@@ -28,10 +28,14 @@ export async function fuels_waitForMessage(provider: FuelProvider, recipient: Ab
 	while ((new Date()).getTime() - startTime < timeout) {
 		let messages = await provider.getMessages(recipient, { first: 1000 });
 		for (let message of messages) {
-			if (message.nonce.eq(nonce)) {
-				//TODO: need to check fuel spent state rather than assume message execution within a time limit
-				if(waitForExecution) await delay(3000);
-				return true;
+			if(waitForExecution) {
+				if (message.nonce.eq(nonce) && message.fuelBlockSpend.gt(0)) {
+					return true;
+				}
+			} else {
+				if (message.nonce.eq(nonce)) {
+					return true;
+				}
 			}
 		}
 		await delay(FUEL_MESSAGE_POLL_MS);

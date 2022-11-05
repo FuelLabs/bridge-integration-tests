@@ -4,7 +4,7 @@ pragma solidity 0.8.9;
 /// @notice Common predicates for Fuel InputMessages
 library InputMessagePredicates {
     bytes32 public constant CONTRACT_MESSAGE_PREDICATE =
-        0x1b68c76eb5a9674b776daab8e2ded519fc152cf1e4f78b08559d4106e36d2176;
+        0xc453f2ed45abb180e0a17aa88e78941eb8169c5f949ee218b45afcb0cfd2c0a8;
 }
 
 /// @title IFuelMessagePortal
