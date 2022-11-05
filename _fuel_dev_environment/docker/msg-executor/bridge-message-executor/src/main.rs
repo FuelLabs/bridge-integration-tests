@@ -4,7 +4,6 @@ use std::str::FromStr;
 use std::thread::sleep;
 use std::time;
 use fuels::client::schema::message::Message;
-use fuels::contract::script::Script;
 use fuels::tx::{Receipt, Contract as tx_contract, Output, Bytes32, Input, UtxoId, TxPointer, Word, Transaction, MessageId };
 use futures::executor::block_on;
 use fuels::prelude::*;
@@ -12,7 +11,7 @@ use fuels::signers::fuel_crypto::SecretKey;
 
 const CLIENT_CONNECT_POLL_MILLIS: u64 = 1000;
 const MONITOR_POLL_MILLIS: u64 = 500;
-const CONTRACT_MESSAGE_MIN_GAS: u64 = 30_000_000; //TODO: 1_200_000;
+const CONTRACT_MESSAGE_MIN_GAS: u64 = 1000000000000; //TODO: 1_200_000;
 const CONTRACT_MESSAGE_SCRIPT_BINARY: &str = "./bridge-message-predicates/contract_message_script.bin";
 const CONTRACT_MESSAGE_PREDICATE_BINARY: &str = "./bridge-message-predicates/contract_message_predicate.bin";
 
@@ -172,26 +171,23 @@ async fn execute_message(
 
     // create the transaction
     let params = TxParameters::default();
-    let mut tx = Transaction::Script {
-        gas_price: params.gas_price,
-        gas_limit: CONTRACT_MESSAGE_MIN_GAS,
-        maturity: params.maturity,
-        receipts_root: Default::default(),
-        script: script_bytecode,
-        script_data: vec![],
-        inputs: tx_inputs,
-        outputs: tx_outputs,
-        witnesses: vec![],
-        metadata: None,
-    };
+    let mut tx = Transaction::script(
+        params.gas_price,
+        CONTRACT_MESSAGE_MIN_GAS,
+        params.maturity,
+        script_bytecode,
+        vec![],
+        tx_inputs,
+        tx_outputs,
+        vec![],
+    );
 
     // get provider and client
     let provider = wallet.get_provider().unwrap();
 
     // sign transaction and call
     wallet.sign_transaction(&mut tx).await.unwrap();
-    let script = Script::new(tx.clone());
-    let result = script.call(provider).await;
+    let result = provider.send_transaction(&mut tx).await;
 
     match result {
         Ok(receipts) => {
