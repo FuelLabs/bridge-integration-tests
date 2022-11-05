@@ -161,9 +161,9 @@ contract FuelMessagePortal is IFuelMessagePortal, Ownable, Pausable, ReentrancyG
 
         //verify block in history
         require(
-            BinaryMerkleTree.verifyDigest(
+            BinaryMerkleTree.verify(
                 rootBlockHeader.prevRoot,
-                blockHeader.computeConsensusHeaderHash(),
+                abi.encodePacked(blockHeader.computeConsensusHeaderHash()),
                 blockInHistoryProof.proof,
                 blockInHistoryProof.key,
                 rootBlockHeader.height - 1
@@ -267,9 +267,9 @@ contract FuelMessagePortal is IFuelMessagePortal, Ownable, Pausable, ReentrancyG
 
         //verify message in block
         require(
-            BinaryMerkleTree.verifyDigest(
+            BinaryMerkleTree.verify(
                 blockHeader.outputMessagesRoot,
-                messageId,
+                abi.encodePacked(messageId),
                 messageInBlockProof.proof,
                 messageInBlockProof.key,
                 blockHeader.outputMessagesCount

@@ -38,6 +38,7 @@ class MessageOutput {
 }
 
 describe('Transferring ETH', async function() {
+	/*
 	const ETH_ASSET_ID = "0x0000000000000000000000000000000000000000000000000000000000000000";
 	const DEFAULT_TIMEOUT_MS: number = 10_000;
 	const FUEL_MESSAGE_TIMEOUT_MS: number = 15_000;
@@ -213,6 +214,7 @@ describe('Transferring ETH', async function() {
 			expect(newReceiverBalance.eq(ethereumETHReceiverBalance.add(parseEther(NUM_ETH)))).to.be.true;
 		});
 	});
+	*/
 });
 
 

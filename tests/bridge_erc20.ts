@@ -189,13 +189,13 @@ describe('Bridging ERC20 tokens', async function() {
 
 		it('Relay Message from Fuel on Ethereum', async () => {
 			// construct relay message proof data
-			//console.log(withdrawMessageProof)
+			console.log(withdrawMessageProof)
 			const messageOutput: MessageOutput = {
 				sender: withdrawMessageProof.sender.toHexString(),
 				recipient: withdrawMessageProof.recipient.toHexString(),
 				amount: withdrawMessageProof.amount.toHex(),
 				nonce: withdrawMessageProof.nonce,
-				data: "0x" + withdrawMessageProof.data.slice(10), ////////////////////////// bad data
+				data: withdrawMessageProof.data,
 			};
 			const blockHeader: BlockHeader = {
 				prevRoot: withdrawMessageProof.header.prevRoot,
@@ -209,7 +209,7 @@ describe('Bridging ERC20 tokens', async function() {
 			};
 			const messageInBlockProof = {
 				key: withdrawMessageProof.proofIndex.toNumber(),
-				proof: withdrawMessageProof.proofSet,
+				proof: withdrawMessageProof.proofSet.slice(0, -1),
 			};
 
 
@@ -228,6 +228,8 @@ describe('Bridging ERC20 tokens', async function() {
 			//console.log(root)
 			//console.log(messageInBlockProof)
 			//console.log(messageInBlockProof2)
+			console.log(messageId);
+			console.log(utils.sha256("0x00" + messageId.slice(2)));
 
 			const blockHeader2: BlockHeader = {
 				prevRoot: withdrawMessageProof.header.prevRoot,
@@ -235,9 +237,9 @@ describe('Bridging ERC20 tokens', async function() {
 				timestamp: 0,
 				daHeight: withdrawMessageProof.header.daHeight.toNumber(),
 				txCount: withdrawMessageProof.header.transactionsCount.toNumber(),
-				outputMessagesCount: 1,
+				outputMessagesCount: withdrawMessageProof.header.outputMessagesCount.toNumber(),
 				txRoot: withdrawMessageProof.header.transactionsRoot,
-				outputMessagesRoot: root,
+				outputMessagesRoot: withdrawMessageProof.header.outputMessagesRoot,
 			};
 
 
@@ -255,7 +257,7 @@ describe('Bridging ERC20 tokens', async function() {
 				env.eth.fuelMessagePortal.relayMessageFromFuelBlock(
 					messageOutput,
 					blockHeader2,
-					messageInBlockProof2,
+					messageInBlockProof,
 					blockSignature
 				)
 			).to.not.be.reverted;
