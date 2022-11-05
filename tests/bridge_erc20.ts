@@ -189,7 +189,7 @@ describe('Bridging ERC20 tokens', async function() {
 
 		it('Relay Message from Fuel on Ethereum', async () => {
 			// construct relay message proof data
-			console.log(withdrawMessageProof)
+			//console.log(withdrawMessageProof)
 			const messageOutput: MessageOutput = {
 				sender: withdrawMessageProof.sender.toHexString(),
 				recipient: withdrawMessageProof.recipient.toHexString(),
@@ -215,22 +215,7 @@ describe('Bridging ERC20 tokens', async function() {
 
 
 
-
-			
-			const messageId = computeMessageId(messageOutput);
-			const messageNodes = constructTreeWithDigests([messageId]);
-			const leafIndexKey = getLeafIndexKey(messageNodes, messageId);
-			const root = calcRootWithDigests([messageId]);
-			const messageInBlockProof2 = {
-				key: leafIndexKey,
-				proof: getProof(messageNodes, leafIndexKey),
-			};
-			//console.log(root)
-			//console.log(messageInBlockProof)
-			//console.log(messageInBlockProof2)
-			console.log(messageId);
-			console.log(utils.sha256("0x00" + messageId.slice(2)));
-
+			//temporary rebuilding of the block header with new signature
 			const blockHeader2: BlockHeader = {
 				prevRoot: withdrawMessageProof.header.prevRoot,
 				height: withdrawMessageProof.header.height.toNumber(),
@@ -241,16 +226,12 @@ describe('Bridging ERC20 tokens', async function() {
 				txRoot: withdrawMessageProof.header.transactionsRoot,
 				outputMessagesRoot: withdrawMessageProof.header.outputMessagesRoot,
 			};
-
-
-
-			//good//console.log(computeApplicationHeaderHash(blockHeader))//console.log(withdrawMessageProof.header.applicationHash)
-			//console.log((new Date(withdrawMessageProof.header.time)).getTime())
 			const poaSigner = new ethers.Wallet("0xa449b1ffee0e2205fa924c6740cc48b3b473aa28587df6dab12abc245d1f5298", env.eth.provider);
 			const blockId = computeBlockId(blockHeader2);
 			const blockSignature = await compactSign(poaSigner, blockId);
-			//console.log(blockSignature)
-			//console.log(withdrawMessageProof.signature)
+
+
+
 
 			// relay message
 			await expect(

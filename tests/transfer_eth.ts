@@ -38,7 +38,6 @@ class MessageOutput {
 }
 
 describe('Transferring ETH', async function() {
-	/*
 	const ETH_ASSET_ID = "0x0000000000000000000000000000000000000000000000000000000000000000";
 	const DEFAULT_TIMEOUT_MS: number = 10_000;
 	const FUEL_MESSAGE_TIMEOUT_MS: number = 15_000;
@@ -156,53 +155,36 @@ describe('Transferring ETH', async function() {
 			};
 			const messageInBlockProof = {
 				key: withdrawMessageProof.proofIndex.toNumber(),
-				proof: withdrawMessageProof.proofSet,
+				proof: withdrawMessageProof.proofSet.slice(0, -1),
 			};
 
 
 
 
-
-			
-			const messageId = computeMessageId(messageOutput);
-			const messageNodes = constructTreeWithDigests([messageId]);
-			const leafIndexKey = getLeafIndexKey(messageNodes, messageId);
-			const root = calcRootWithDigests([messageId]);
-			const messageInBlockProof2 = {
-				key: leafIndexKey,
-				proof: getProof(messageNodes, leafIndexKey),
-			};
-			//console.log(root)
-			//console.log(messageInBlockProof)
-			//console.log(messageInBlockProof2)
-
+			//temporary rebuilding of the block header with new signature
 			const blockHeader2: BlockHeader = {
 				prevRoot: withdrawMessageProof.header.prevRoot,
 				height: withdrawMessageProof.header.height.toNumber(),
 				timestamp: 0,
 				daHeight: withdrawMessageProof.header.daHeight.toNumber(),
 				txCount: withdrawMessageProof.header.transactionsCount.toNumber(),
-				outputMessagesCount: 1,
+				outputMessagesCount: withdrawMessageProof.header.outputMessagesCount.toNumber(),
 				txRoot: withdrawMessageProof.header.transactionsRoot,
-				outputMessagesRoot: root,
+				outputMessagesRoot: withdrawMessageProof.header.outputMessagesRoot,
 			};
-
-
-
-			//good//console.log(computeApplicationHeaderHash(blockHeader))//console.log(withdrawMessageProof.header.applicationHash)
-			//console.log((new Date(withdrawMessageProof.header.time)).getTime())
 			const poaSigner = new ethers.Wallet("0xa449b1ffee0e2205fa924c6740cc48b3b473aa28587df6dab12abc245d1f5298", env.eth.provider);
 			const blockId = computeBlockId(blockHeader2);
 			const blockSignature = await compactSign(poaSigner, blockId);
-			//console.log(blockSignature)
-			//console.log(withdrawMessageProof.signature)
+			
+
+
 
 			// relay message
 			await expect(
 				env.eth.fuelMessagePortal.relayMessageFromFuelBlock(
 					messageOutput,
 					blockHeader2,
-					messageInBlockProof2,
+					messageInBlockProof,
 					blockSignature
 				)
 			).to.not.be.reverted;
@@ -214,7 +196,6 @@ describe('Transferring ETH', async function() {
 			expect(newReceiverBalance.eq(ethereumETHReceiverBalance.add(parseEther(NUM_ETH)))).to.be.true;
 		});
 	});
-	*/
 });
 
 

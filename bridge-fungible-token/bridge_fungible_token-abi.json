@@ -27,7 +27,7 @@
           "typeArguments": null
         },
         {
-          "name": "NoCoinsForwarded",
+          "name": "NoCoinsSent",
           "type": 0,
           "typeArguments": null
         },
@@ -280,7 +280,7 @@
       "logId": 1,
       "loggedType": {
         "name": "",
-        "type": 8,
+        "type": 2,
         "typeArguments": []
       }
     },
@@ -296,7 +296,7 @@
       "logId": 3,
       "loggedType": {
         "name": "",
-        "type": 7,
+        "type": 8,
         "typeArguments": []
       }
     },
@@ -312,7 +312,7 @@
       "logId": 5,
       "loggedType": {
         "name": "",
-        "type": 2,
+        "type": 7,
         "typeArguments": []
       }
     },
@@ -334,6 +334,14 @@
     },
     {
       "logId": 8,
+      "loggedType": {
+        "name": "",
+        "type": 2,
+        "typeArguments": []
+      }
+    },
+    {
+      "logId": 9,
       "loggedType": {
         "name": "",
         "type": 9,
