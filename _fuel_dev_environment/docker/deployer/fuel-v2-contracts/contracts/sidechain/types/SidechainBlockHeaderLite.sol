@@ -34,7 +34,7 @@ library SidechainBlockHeaderLiteLib {
         return
             abi.encodePacked(
                 header.prevRoot,
-                header.height,
+                (uint32)(header.height),
                 header.timestamp,
                 header.applicationHash
             );

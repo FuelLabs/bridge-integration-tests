@@ -261,7 +261,8 @@ contract FuelMessagePortal is IFuelMessagePortal, Ownable, Pausable, ReentrancyG
         require(!s_incomingMessageSuccessful[messageId], "Already relayed");
         require(
             // solhint-disable-next-line not-rely-on-time
-            (blockHeader.timestamp - 4611686018427387914) <= (block.timestamp - s_incomingMessageTimelock),
+            (blockHeader.timestamp - 4611686018427387914) <=
+                (block.timestamp - s_incomingMessageTimelock),
             "Timelock not elapsed"
         );
 

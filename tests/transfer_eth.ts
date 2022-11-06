@@ -39,8 +39,8 @@ class MessageOutput {
 
 describe('Transferring ETH', async function() {
 	const ETH_ASSET_ID = "0x0000000000000000000000000000000000000000000000000000000000000000";
-	const DEFAULT_TIMEOUT_MS: number = 10_000;
-	const FUEL_MESSAGE_TIMEOUT_MS: number = 15_000;
+	const DEFAULT_TIMEOUT_MS: number = 20_000;
+	const FUEL_MESSAGE_TIMEOUT_MS: number = 30_000;
 
 	let env: TestEnvironment;
 
@@ -92,7 +92,7 @@ describe('Transferring ETH', async function() {
 			this.timeout(FUEL_MESSAGE_TIMEOUT_MS);
 
 			// wait for message to appear in fuel client
-			expect(await fuels_waitForMessage(env.fuel.provider, fuelETHReceiver, fuelETHMessageNonce, FUEL_MESSAGE_TIMEOUT_MS)).to.equal(true);
+			expect(await fuels_waitForMessage(env.fuel.provider, fuelETHReceiver, fuelETHMessageNonce, FUEL_MESSAGE_TIMEOUT_MS)).to.not.be.null;
 
 			// check that the recipient balance has increased by the expected amount
 			let newReceiverBalance = await env.fuel.provider.getBalance(fuelETHReceiver, ETH_ASSET_ID);

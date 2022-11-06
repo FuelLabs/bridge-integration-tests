@@ -74,11 +74,10 @@ library SidechainBlockHeaderLib {
         pure
         returns (bytes memory)
     {
-        uint32 height = (uint32)(header.height);
         return
             abi.encodePacked(
                 header.prevRoot,
-                height,
+                (uint32)(header.height),
                 header.timestamp,
                 computeApplicationHeaderHash(header)
             );

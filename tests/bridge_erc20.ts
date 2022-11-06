@@ -9,7 +9,7 @@ import { Token } from '../fuel-v2-contracts/Token.d';
 import { Token__factory } from '../fuel-v2-contracts/factories/Token__factory';
 import FuelFungibleTokenContractABI_json from "../bridge-fungible-token/bridge_fungible_token-abi.json";
 import { AbstractAddress, Address, BN, Contract, MessageProof, OutputType, TransactionResultMessageOutReceipt, WalletUnlocked as FuelWallet } from 'fuels';
-import { fuels_waitForMessage } from '../scripts/utils';
+import { fuels_relayCommonMessage, fuels_waitForMessage } from '../scripts/utils';
 
 chai.use(solidity);
 const { expect } = chai;
@@ -43,8 +43,8 @@ class MessageOutput {
 }
 
 describe('Bridging ERC20 tokens', async function() {
-	const DEFAULT_TIMEOUT_MS: number = 10_000;
-	const FUEL_MESSAGE_TIMEOUT_MS: number = 15_000;
+	const DEFAULT_TIMEOUT_MS: number = 20_000;
+	const FUEL_MESSAGE_TIMEOUT_MS: number = 30_000;
 	const DECIMAL_DIFF = 1_000_000_000;
 
 	let env: TestEnvironment;
@@ -132,13 +132,18 @@ describe('Bridging ERC20 tokens', async function() {
 			expect(newSenderBalance.eq(ethereumTokenSenderBalance.sub(NUM_TOKENS))).to.be.true;
 		});
 
-		it('Wait for ERC20 to arrive on Fuel', async function() {
+		it('Relay message from Ethereum on Fuel', async function() {
 			// override the default test timeout from 2000ms
 			this.timeout(FUEL_MESSAGE_TIMEOUT_MS);
 
-			// wait for message to appear in fuel client and be executed automatically
-			expect(await fuels_waitForMessage(env.fuel.provider, fuelTokenMessageReceiver, fuelTokenMessageNonce, FUEL_MESSAGE_TIMEOUT_MS, true)).to.equal(true);
+			// relay the message ourselves
+			const message = await fuels_waitForMessage(env.fuel.provider, fuelTokenMessageReceiver, fuelTokenMessageNonce, FUEL_MESSAGE_TIMEOUT_MS);
+			expect(message).to.not.be.null;
+			const tx = await fuels_relayCommonMessage(env.fuel.deployer, message);
+			expect((await tx.waitForResult()).status.type).to.equal('success');
+		});
 
+		it('Check ERC20 arrived on Fuel', async () => {
 			// check that the recipient balance has increased by the expected amount
 			let newReceiverBalance = await env.fuel.provider.getBalance(fuelTokenReceiver, fuel_testTokenId);
 			expect(newReceiverBalance.eq(fuelTokenReceiverBalance.add(NUM_TOKENS/DECIMAL_DIFF))).to.be.true;
