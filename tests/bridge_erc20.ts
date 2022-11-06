@@ -19,13 +19,13 @@ class BlockHeader {
 	constructor(
 		// Consensus
 		public prevRoot: string,
-		public height: number,
-		public timestamp: number,
+		public height: string,
+		public timestamp: string,
 
 		// Application
-		public daHeight: number,
-		public txCount: number,
-		public outputMessagesCount: number,
+		public daHeight: string,
+		public txCount: string,
+		public outputMessagesCount: string,
 		public txRoot: string,
 		public outputMessagesRoot: string
 	) {}
@@ -189,7 +189,6 @@ describe('Bridging ERC20 tokens', async function() {
 
 		it('Relay Message from Fuel on Ethereum', async () => {
 			// construct relay message proof data
-			//console.log(withdrawMessageProof)
 			const messageOutput: MessageOutput = {
 				sender: withdrawMessageProof.sender.toHexString(),
 				recipient: withdrawMessageProof.recipient.toHexString(),
@@ -199,11 +198,11 @@ describe('Bridging ERC20 tokens', async function() {
 			};
 			const blockHeader: BlockHeader = {
 				prevRoot: withdrawMessageProof.header.prevRoot,
-				height: withdrawMessageProof.header.height.toNumber(),
-				timestamp: Math.floor((new Date(withdrawMessageProof.header.time)).getTime() / 1000),
-				daHeight: withdrawMessageProof.header.daHeight.toNumber(),
-				txCount: withdrawMessageProof.header.transactionsCount.toNumber(),
-				outputMessagesCount: withdrawMessageProof.header.outputMessagesCount.toNumber(),
+				height: withdrawMessageProof.header.height.toHex(),
+				timestamp: (new BN(withdrawMessageProof.header.time)).toHex(),
+				daHeight: withdrawMessageProof.header.daHeight.toHex(),
+				txCount: withdrawMessageProof.header.transactionsCount.toHex(),
+				outputMessagesCount: withdrawMessageProof.header.outputMessagesCount.toHex(),
 				txRoot: withdrawMessageProof.header.transactionsRoot,
 				outputMessagesRoot: withdrawMessageProof.header.outputMessagesRoot,
 			};
@@ -211,35 +210,14 @@ describe('Bridging ERC20 tokens', async function() {
 				key: withdrawMessageProof.proofIndex.toNumber(),
 				proof: withdrawMessageProof.proofSet.slice(0, -1),
 			};
-
-
-
-
-			//temporary rebuilding of the block header with new signature
-			const blockHeader2: BlockHeader = {
-				prevRoot: withdrawMessageProof.header.prevRoot,
-				height: withdrawMessageProof.header.height.toNumber(),
-				timestamp: 0,
-				daHeight: withdrawMessageProof.header.daHeight.toNumber(),
-				txCount: withdrawMessageProof.header.transactionsCount.toNumber(),
-				outputMessagesCount: withdrawMessageProof.header.outputMessagesCount.toNumber(),
-				txRoot: withdrawMessageProof.header.transactionsRoot,
-				outputMessagesRoot: withdrawMessageProof.header.outputMessagesRoot,
-			};
-			const poaSigner = new ethers.Wallet("0xa449b1ffee0e2205fa924c6740cc48b3b473aa28587df6dab12abc245d1f5298", env.eth.provider);
-			const blockId = computeBlockId(blockHeader2);
-			const blockSignature = await compactSign(poaSigner, blockId);
-
-
-
-
+			
 			// relay message
 			await expect(
 				env.eth.fuelMessagePortal.relayMessageFromFuelBlock(
 					messageOutput,
-					blockHeader2,
+					blockHeader,
 					messageInBlockProof,
-					blockSignature
+					withdrawMessageProof.signature,
 				)
 			).to.not.be.reverted;
 		});
@@ -251,207 +229,3 @@ describe('Bridging ERC20 tokens', async function() {
 		});
 	});
 });
-
-
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// compute root wth digests
-export function calcRootWithDigests(digests: string[]): string {
-	if (digests.length === 0) {
-		return "";
-	}
-	const nodes = [];
-	for (let i = 0; i < digests.length; i += 1) {
-		const hashed = digests[i];
-		nodes.push(new Node(-1, -1, -1, hashed, digests[i]));
-	}
-	let pNodes = nodes;
-	let size = (nodes.length + 1) >> 1;
-	let odd = nodes.length & 1;
-	// eslint-disable-next-line no-constant-condition
-	while (true) {
-		let i = 0;
-		for (; i < size - odd; i += 1) {
-			const j = i << 1;
-			const hashed = nodeDigest(pNodes[j].hash, pNodes[j + 1].hash);
-			nodes[i] = new Node(pNodes[j].index, pNodes[j + 1].index, -1, hashed, '');
-		}
-		if (odd === 1) {
-			nodes[i] = pNodes[i << 1];
-		}
-		if (size === 1) {
-			break;
-		}
-		odd = size & 1;
-		size = (size + 1) >> 1;
-		pNodes = nodes;
-	}
-	return nodes[0].hash;
-}
-// get proof for the leaf
-export function getProof(nodes: Node[], id: number): string[] {
-	// const proof = new Proof([]);
-	const proof: string[] = [];
-	for (let prev = id, cur = nodes[id].parent; cur !== -1; prev = cur, cur = nodes[cur].parent) {
-		if (nodes[cur].left === prev) {
-			proof.push(nodes[nodes[cur].right].hash);
-		} else {
-			proof.push(nodes[nodes[cur].left].hash);
-		}
-	}
-	return proof;
-}
-// get proof for the leaf
-function getLeafIndexKey(nodes: Node[], data: string): number {
-	for (let n = 0; n < nodes.length; n += 1) {
-		if (nodes[n].data === data) {
-			return nodes[n].index;
-		}
-	}
-	return 0;
-}
-
-class Node {
-	left: number;
-
-	right: number;
-
-	parent: number;
-
-	index: number;
-
-	hash: string;
-
-	data: string;
-
-	constructor(left: number, right: number, parent: number, hash: string, data: string) {
-		this.left = left;
-		this.right = right;
-		this.parent = parent;
-		this.hash = hash;
-		this.data = data;
-		this.index = 0;
-	}
-}
-
-export function nodeDigest(left: string, right: string): string {
-	// Slice off the '0x' on each argument to simulate abi.encodePacked
-	// hash(prefix +  left + right)
-	return utils.sha256('0x01'.concat(left.slice(2)).concat(right.slice(2)));
-}
-
-// construct tree from digests
-export function constructTreeWithDigests(digests: string[]): Node[] {
-	const nodes = [];
-	for (let i = 0; i < digests.length; i += 1) {
-		const hashed = digests[i];
-		const leaf = new Node(-1, -1, -1, hashed, digests[i]);
-		leaf.index = i;
-		nodes.push(leaf);
-	}
-
-	const nodesList = [...nodes];
-	let pNodes = [...nodes];
-
-	let size = (nodes.length + 1) >> 1;
-	let odd = nodes.length & 1;
-	// eslint-disable-next-line no-constant-condition
-	while (true) {
-		let i = 0;
-		for (; i < size - odd; i += 1) {
-			const j = i << 1;
-			const hashed = nodeDigest(pNodes[j].hash, pNodes[j + 1].hash);
-			nodes[i] = new Node(pNodes[j].index, pNodes[j + 1].index, -1, hashed, '');
-			const nextIndex = nodesList.length;
-			nodes[i].index = nextIndex;
-
-			nodesList[pNodes[j].index].parent = nextIndex;
-			nodesList[pNodes[j + 1].index].parent = nextIndex;
-			nodesList.push(nodes[i]);
-		}
-
-		if (size === 1) {
-			break;
-		}
-
-		if (odd === 1) {
-			nodes[i] = pNodes[i << 1];
-		}
-
-		odd = size & 1;
-		size = (size + 1) >> 1;
-		pNodes = [...nodes];
-	}
-	return nodesList;
-}
-
-function computeMessageId(message: MessageOutput): string {
-	return utils.sha256(
-		ethers.utils.solidityPack(
-			['bytes32', 'bytes32', 'bytes32', 'uint64', 'bytes'],
-			[message.sender, message.recipient, message.nonce, message.amount, message.data]
-		)
-	);
-}
-
-// Serialize a block application header.
-export function serializeApplicationHeader(blockHeader: BlockHeader): string {
-	return utils.solidityPack(
-		['uint64', 'uint64', 'uint64', 'bytes32', 'bytes32'],
-		[
-			blockHeader.daHeight,
-			blockHeader.txCount,
-			blockHeader.outputMessagesCount,
-			blockHeader.txRoot,
-			blockHeader.outputMessagesRoot,
-		]
-	);
-}
-
-// Produce the block application header hash.
-export function computeApplicationHeaderHash(blockHeader: BlockHeader): string {
-	return utils.sha256(serializeApplicationHeader(blockHeader));
-}
-
-// Serialize a block consensus header.
-export function serializeConsensusHeader(blockHeader: BlockHeader): string {
-	return utils.solidityPack(
-		['bytes32', 'uint64', 'uint64', 'bytes32'],
-		[
-			blockHeader.prevRoot,
-			blockHeader.height,
-			blockHeader.timestamp,
-			computeApplicationHeaderHash(blockHeader),
-		]
-	);
-}
-
-// Produce the block consensus header hash.
-export function computeConsensusHeaderHash(blockHeader: BlockHeader): string {
-	return utils.sha256(serializeConsensusHeader(blockHeader));
-}
-
-// Produce the block ID (aka the consensus header hash).
-export function computeBlockId(blockHeader: BlockHeader): string {
-	return computeConsensusHeaderHash(blockHeader);
-}
-
-
-
-// Sign a messag with a signer, returning the signature object (v, r, s components)
-export async function componentSign(signer: Signer, message: string): Promise<Signature> {
-	const flatSig = await signer.signMessage(ethers.utils.arrayify(message));
-	const sig = ethers.utils.splitSignature(flatSig);
-	return sig;
-}
-
-// Sign a message with as signer, returning a 64-byte compact ECDSA signature
-export async function compactSign(signer: Signer, message: string): Promise<string> {
-	const sig = await componentSign(signer, message);
-	// eslint-disable-next-line no-underscore-dangle
-	const compactSig = sig.r.concat(sig._vs.slice(2));
-	return compactSig;
-}
