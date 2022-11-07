@@ -30,7 +30,8 @@ const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
 	const ethereumAccountAddress = await ethereumAccount.getAddress();
 	const fuelAccount = env.fuel.signers[1];
 	const fuelAccountAddress = fuelAccount.address.toHexString();
-  const l1ERC20Gateway = env.eth.l1ERC20Gateway.connect(ethereumAccount);
+  const fuelMessagePortal = env.eth.fuelMessagePortal.connect(ethereumAccount);
+  const gatewayContract = env.eth.l1ERC20Gateway.connect(ethereumAccount);
 
 	////////////////////////////
 	// Create Token Contracts //
@@ -57,7 +58,7 @@ const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
 
     // check that values for the test token and gateway contract match what
     // was compiled into the bridge-fungible-token binaries
-    if(l1ERC20Gateway.address != expectedGatewayContractId || ethTestToken.address != expectedTokenContractId || (await ethTestToken.decimals()) != 18) {
+    if(gatewayContract.address != expectedGatewayContractId || ethTestToken.address != expectedTokenContractId || (await ethTestToken.decimals()) != 18) {
       throw new Error("failed to connect or create the Ethereum side ERC-20 contract");
     }
 
@@ -94,7 +95,7 @@ const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
 
   // approve l1 gateway to spend the tokens
 	console.log("Approving Tokens for gateway...");
-  const eApproveTx = await ethTestToken.approve(l1ERC20Gateway.address, ethers_parseToken(TOKEN_AMOUNT, 18));
+  const eApproveTx = await ethTestToken.approve(gatewayContract.address, ethers_parseToken(TOKEN_AMOUNT, 18));
 	const eApproveTxResult = await eApproveTx.wait();
 	if(eApproveTxResult.status !== 1) {
 		console.log(eApproveTxResult);
@@ -103,7 +104,7 @@ const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
 
   // use the L1ERC20Gateway to deposit test tokens and receive equivalent tokens on Fuel
 	console.log("Sending " + TOKEN_AMOUNT + " Tokens from Ethereum...");
-  const eDepositTx = await l1ERC20Gateway.deposit(fuelAccountAddress, ethTestToken.address, fuelTestTokenId, ethers_parseToken(TOKEN_AMOUNT, 18));
+  const eDepositTx = await gatewayContract.deposit(fuelAccountAddress, ethTestToken.address, fuelTestTokenId, ethers_parseToken(TOKEN_AMOUNT, 18));
   const eDepositTxResult = await eDepositTx.wait();
 	if(eDepositTxResult.status !== 1) {
 		console.log(eDepositTxResult);
@@ -111,7 +112,7 @@ const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
 	}
 
   // parse events from logs
-  const event = env.eth.fuelMessagePortal.interface.parseLog(eDepositTxResult.logs[2]);
+  const event = fuelMessagePortal.interface.parseLog(eDepositTxResult.logs[2]);
   const depositMessageNonce = new BN(event.args.nonce.toHexString());
   const fuelTokenMessageReceiver = Address.fromB256(event.args.recipient);
 
@@ -123,7 +124,7 @@ const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
 
   // relay the message ourselves
   console.log("Relaying message on Fuel...");
-  const fMessageRelayTx = await fuels_relayCommonMessage(env.fuel.deployer, depositMessage);
+  const fMessageRelayTx = await fuels_relayCommonMessage(fuelAccount, depositMessage);
   const fMessageRelayTxResult = await fMessageRelayTx.waitForResult();
   if (fMessageRelayTxResult.status.type !== 'success') {
     console.log(fMessageRelayTxResult);
@@ -131,9 +132,8 @@ const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
   }
   console.log('');
 
-  // the sent ETH is now spendable on Fuel
+  // the sent Tokens are now spendable on Fuel
   console.log('Tokens were bridged to Fuel successfully!!');
-  console.log('');
 
   // note balances of both accounts after transfer
 	console.log("Account balances:");
@@ -189,7 +189,7 @@ const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
 
   // relay message on Ethereum
   console.log('Relaying message on Ethereum...');
-  const eRelayMessageTx = await env.eth.fuelMessagePortal.relayMessageFromFuelBlock(
+  const eRelayMessageTx = await fuelMessagePortal.relayMessageFromFuelBlock(
     messageOutput,
     blockHeader,
     messageInBlockProof,
@@ -204,7 +204,6 @@ const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
 
   // the sent Tokens are now spendable on Fuel
   console.log('Tokens were bridged to Ethereum successfully!!');
-  console.log('');
 
   // note balances of both accounts after transfer
 	console.log("Account balances:");

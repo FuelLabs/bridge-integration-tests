@@ -1,7 +1,7 @@
 import { formatEther, parseEther } from 'ethers/lib/utils';
 import { Address, BN, TransactionResultMessageOutReceipt, ZeroBytes32 } from 'fuels';
 import { TestEnvironment, setupEnvironment } from '../scripts/setup';
-import { fuels_formatEther, fuels_parseEther, fuels_waitForMessage } from '../scripts/utils';
+import { fuels_formatEther, fuels_messageToCoin, fuels_parseEther, fuels_waitForMessage } from '../scripts/utils';
 
 const ETH_AMOUNT = '0.1';
 const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
@@ -18,7 +18,7 @@ const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
   const ethereumAccountAddress = await ethereumAccount.getAddress();
   const fuelAccount = env.fuel.signers[0];
   const fuelAccountAddress = fuelAccount.address.toHexString();
-  const fuelMessagePortal = await env.eth.fuelMessagePortal.connect(ethereumAccount);
+  const fuelMessagePortal = env.eth.fuelMessagePortal.connect(ethereumAccount);
 
   /////////////////////////////
   // Bridge Ethereum -> Fuel //
@@ -40,7 +40,7 @@ const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
   }
 
   // parse events from logs to get the message nonce
-  const event = env.eth.fuelMessagePortal.interface.parseLog(eSendTxResult.logs[0]);
+  const event = fuelMessagePortal.interface.parseLog(eSendTxResult.logs[0]);
   const depositMessageNonce = new BN(event.args.nonce.toHexString());
 
   // wait for message to appear in fuel client
@@ -52,10 +52,21 @@ const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
 
   // the sent ETH is now spendable on Fuel
   console.log('ETH was bridged to Fuel successfully!!');
-  console.log('');
 
   // note balances of both accounts after transfer
   console.log('Account balances:');
+  console.log('  Ethereum - ' + formatEther(await ethereumAccount.getBalance()) + ' ETH (' + ethereumAccountAddress + ')');
+  console.log('  Fuel - ' + fuels_formatEther(await fuelAccount.getBalance(ZeroBytes32)) + ' ETH (' + fuelAccountAddress + ')');
+  console.log('');
+
+  // TODO: the below step is only there to avoid a bug in the SDK when a wallet has spendable messages
+  console.log('[BUG FIX] Converting message input to coin input...');
+  const fMessageToCoinTx = await fuels_messageToCoin(fuelAccount, depositMessage);
+  const fMessageToCoinTxResult = await fMessageToCoinTx.waitForResult();
+  if (fMessageToCoinTxResult.status.type !== 'success') {
+    console.log(fMessageToCoinTxResult);
+    throw new Error('failed to convert message to coin');
+  }
   console.log('  Ethereum - ' + formatEther(await ethereumAccount.getBalance()) + ' ETH (' + ethereumAccountAddress + ')');
   console.log('  Fuel - ' + fuels_formatEther(await fuelAccount.getBalance(ZeroBytes32)) + ' ETH (' + fuelAccountAddress + ')');
   console.log('');
@@ -67,7 +78,7 @@ const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
   // withdraw ETH back to the base chain
   console.log('Sending ' + ETH_AMOUNT + ' ETH from Fuel...');
   //TODO: this should be the fuelAccount sending, but there is currently an issue in the TS SDK when coinsToSpend returns messages
-  const fWithdrawTx = await env.fuel.deployer.withdrawToBaseLayer(Address.fromString(ethereumAccountAddress), fuels_parseEther(ETH_AMOUNT));
+  const fWithdrawTx = await fuelAccount.withdrawToBaseLayer(Address.fromString(ethereumAccountAddress), fuels_parseEther(ETH_AMOUNT));
   const fWithdrawTxResult = await fWithdrawTx.waitForResult();
   if (fWithdrawTxResult.status.type !== 'success') {
     console.log(fWithdrawTxResult);
@@ -104,7 +115,7 @@ const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
 
   // relay message on Ethereum
   console.log('Relaying message on Ethereum...');
-  const eRelayMessageTx = await env.eth.fuelMessagePortal.relayMessageFromFuelBlock(
+  const eRelayMessageTx = await fuelMessagePortal.relayMessageFromFuelBlock(
     messageOutput,
     blockHeader,
     messageInBlockProof,
@@ -119,7 +130,6 @@ const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
 
   // the sent ETH is now spendable on Fuel
   console.log('ETH was bridged to Ethereum successfully!!');
-  console.log('');
 
   // note balances of both accounts after transfer
   console.log('Account balances:');

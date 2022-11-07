@@ -15,12 +15,14 @@ import {
   hexlify,
   OutputType,
   TransactionResponse,
+  bn,
 } from 'fuels';
 
 // Constants
 const ETHEREUM_ETH_DECIMALS: number = 18;
 const FUEL_ETH_DECIMALS: number = 9;
 const FUEL_MESSAGE_POLL_MS: number = 300;
+const MAX_GAS_PER_TX = bn(100000000);
 
 // Parse ETH value as a string
 export function fuels_parseEther(ether: string): BN {
@@ -113,6 +115,37 @@ export async function fuels_relayCommonMessage(
     txParams
   );
   return relayer.sendTransaction(transaction);
+}
+
+// Converts the given message into a coin
+export async function fuels_messageToCoin(
+  wallet: FuelWallet,
+  message: Message,
+  txParams: Pick<TransactionRequestLike, 'gasLimit' | 'gasPrice' | 'maturity'> = {}
+): Promise<TransactionResponse> {
+
+  // build the transaction
+  const transaction = new ScriptTransactionRequest({ gasLimit: MAX_GAS_PER_TX, ...txParams });
+  transaction.inputs.push({
+	type: InputType.Message,
+	amount: message.amount,
+	sender: message.sender.toHexString(),
+	recipient: message.recipient.toHexString(),
+	witnessIndex: 0,
+	data: message.data,
+	nonce: message.nonce,
+  });
+  transaction.outputs.push({
+	type: OutputType.Change,
+	to: message.recipient.toHexString(),
+	assetId: ZeroBytes32,
+  });
+  transaction.witnesses.push('0x');
+  
+  const signedTransaction = await wallet.signTransaction(transaction);
+  transaction.updateWitness(0, signedTransaction);
+
+  return wallet.sendTransaction(transaction);
 }
 
 // Simple async delay function
