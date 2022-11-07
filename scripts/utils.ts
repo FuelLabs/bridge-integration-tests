@@ -36,6 +36,32 @@ export function fuels_formatEther(ether: BN): string {
   return ethers.utils.formatEther(val);
 }
 
+// Parse any string value using the given decimal amount
+export function fuels_parseToken(value: string, decimals: number = 9): BN {
+  let val = ethers.utils.parseEther(value);
+  val = val.div(10 ** (ETHEREUM_ETH_DECIMALS - decimals));
+  return new BN(val.toHexString());
+}
+
+// Format any value to a string using the given decimal amount
+export function fuels_formatToken(value: BN, decimals: number = 9): string {
+  let val = BigNumber.from(value.toHex());
+  val = val.mul(10 ** (ETHEREUM_ETH_DECIMALS - decimals));
+  return ethers.utils.formatEther(val);
+}
+
+// Parse any string value using the given decimal amount
+export function ethers_parseToken(value: string, decimals: number = 18): BigNumber {
+  let val = ethers.utils.parseEther(value);
+  return val.div(10 ** (ETHEREUM_ETH_DECIMALS - decimals));
+}
+
+// Format any value to a string using the given decimal amount
+export function ethers_formatToken(value: BigNumber, decimals: number = 18): string {
+  value = value.mul(10 ** (ETHEREUM_ETH_DECIMALS - decimals));
+  return ethers.utils.formatEther(value);
+}
+
 // Wait until a message is present in the fuel client
 export async function fuels_waitForMessage(
   provider: FuelProvider,

@@ -1,20 +1,137 @@
-import chai from 'chai';
-import { solidity } from 'ethereum-waffle';
-import { ethers, BigNumber, Signer, utils, Signature } from 'ethers';
-import { parseEther } from 'ethers/lib/utils';
-import {
-  AbstractAddress,
-  Address,
-  BN,
-  MessageProof,
-  TransactionResultMessageOutReceipt,
-  WalletUnlocked as FuelWallet,
-} from 'fuels';
+import { formatEther, parseEther } from 'ethers/lib/utils';
+import { Address, BN, TransactionResultMessageOutReceipt, ZeroBytes32 } from 'fuels';
 import { TestEnvironment, setupEnvironment } from '../scripts/setup';
-import { fuels_parseEther, fuels_waitForMessage } from '../scripts/utils';
+import { fuels_formatEther, fuels_parseEther, fuels_waitForMessage } from '../scripts/utils';
 
-chai.use(solidity);
-const { expect } = chai;
+const ETH_AMOUNT = '0.1';
+const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
+
+// This script is a demonstration of how the base asset (ETH) is bridged to and from the Fuel chain
+(async function () {
+  // basic setup routine which creates the connections (the "providers") to both chains,
+  // funds addresses for us to test with and populates the official contract deployments
+  // on the Ethereum chain for interacting with the Fuel chain
+  console.log('Setting up environment...');
+  console.log('');
+  const env: TestEnvironment = await setupEnvironment({});
+  const ethereumAccount = env.eth.signers[0];
+  const ethereumAccountAddress = await ethereumAccount.getAddress();
+  const fuelAccount = env.fuel.signers[0];
+  const fuelAccountAddress = fuelAccount.address.toHexString();
+  const fuelMessagePortal = await env.eth.fuelMessagePortal.connect(ethereumAccount);
+
+  /////////////////////////////
+  // Bridge Ethereum -> Fuel //
+  /////////////////////////////
+
+  // note balances of both accounts before transfer
+  console.log('Account balances:');
+  console.log('  Ethereum - ' + formatEther(await ethereumAccount.getBalance()) + ' ETH (' + ethereumAccountAddress + ')');
+  console.log('  Fuel - ' + fuels_formatEther(await fuelAccount.getBalance(ZeroBytes32)) + ' ETH (' + fuelAccountAddress + ')');
+  console.log('');
+
+  // use the FuelMessagePortal to directly send ETH to the fuel account
+  console.log('Sending ' + ETH_AMOUNT + ' ETH from Ethereum...');
+  const eSendTx = await fuelMessagePortal.sendETH(fuelAccountAddress, { value: parseEther(ETH_AMOUNT) });
+  const eSendTxResult = await eSendTx.wait();
+  if (eSendTxResult.status !== 1) {
+    console.log(eSendTxResult);
+    throw new Error('failed to call sendETH');
+  }
+
+  // parse events from logs to get the message nonce
+  const event = env.eth.fuelMessagePortal.interface.parseLog(eSendTxResult.logs[0]);
+  const depositMessageNonce = new BN(event.args.nonce.toHexString());
+
+  // wait for message to appear in fuel client
+  console.log('Waiting for ETH to arrive on Fuel...');
+  const depositMessage = await fuels_waitForMessage(env.fuel.provider, fuelAccount.address, depositMessageNonce, FUEL_MESSAGE_TIMEOUT_MS);
+  if (depositMessage == null)
+    throw new Error('message took longer than ' + FUEL_MESSAGE_TIMEOUT_MS + 'ms to arrive on Fuel');
+  console.log('');
+
+  // the sent ETH is now spendable on Fuel
+  console.log('ETH was bridged to Fuel successfully!!');
+  console.log('');
+
+  // note balances of both accounts after transfer
+  console.log('Account balances:');
+  console.log('  Ethereum - ' + formatEther(await ethereumAccount.getBalance()) + ' ETH (' + ethereumAccountAddress + ')');
+  console.log('  Fuel - ' + fuels_formatEther(await fuelAccount.getBalance(ZeroBytes32)) + ' ETH (' + fuelAccountAddress + ')');
+  console.log('');
+
+  /////////////////////////////
+  // Bridge Fuel -> Ethereum //
+  /////////////////////////////
+
+  // withdraw ETH back to the base chain
+  console.log('Sending ' + ETH_AMOUNT + ' ETH from Fuel...');
+  //TODO: this should be the fuelAccount sending, but there is currently an issue in the TS SDK when coinsToSpend returns messages
+  const fWithdrawTx = await env.fuel.deployer.withdrawToBaseLayer(Address.fromString(ethereumAccountAddress), fuels_parseEther(ETH_AMOUNT));
+  const fWithdrawTxResult = await fWithdrawTx.waitForResult();
+  if (fWithdrawTxResult.status.type !== 'success') {
+    console.log(fWithdrawTxResult);
+    throw new Error('failed to withdraw ETH back to base layer');
+  }
+
+  // get message proof for relaying on Ethereum
+  console.log('Building message proof...');
+  const messageOutReceipt = <TransactionResultMessageOutReceipt>fWithdrawTxResult.receipts[0];
+  const withdrawMessageProof = await env.fuel.provider.getMessageProof(fWithdrawTx.id, messageOutReceipt.messageID);
+
+  // construct relay message proof data
+  const messageOutput: MessageOutput = {
+    sender: withdrawMessageProof.sender.toHexString(),
+    recipient: withdrawMessageProof.recipient.toHexString(),
+    amount: withdrawMessageProof.amount.toHex(),
+    nonce: withdrawMessageProof.nonce,
+    data: withdrawMessageProof.data,
+  };
+  const blockHeader: BlockHeader = {
+    prevRoot: withdrawMessageProof.header.prevRoot,
+    height: withdrawMessageProof.header.height.toHex(),
+    timestamp: new BN(withdrawMessageProof.header.time).toHex(),
+    daHeight: withdrawMessageProof.header.daHeight.toHex(),
+    txCount: withdrawMessageProof.header.transactionsCount.toHex(),
+    outputMessagesCount: withdrawMessageProof.header.outputMessagesCount.toHex(),
+    txRoot: withdrawMessageProof.header.transactionsRoot,
+    outputMessagesRoot: withdrawMessageProof.header.outputMessagesRoot,
+  };
+  const messageInBlockProof = {
+    key: withdrawMessageProof.proofIndex.toNumber(),
+    proof: withdrawMessageProof.proofSet.slice(0, -1),
+  };
+
+  // relay message on Ethereum
+  console.log('Relaying message on Ethereum...');
+  const eRelayMessageTx = await env.eth.fuelMessagePortal.relayMessageFromFuelBlock(
+    messageOutput,
+    blockHeader,
+    messageInBlockProof,
+    withdrawMessageProof.signature
+  );
+  const eRelayMessageTxResult = await eRelayMessageTx.wait();
+  if (eRelayMessageTxResult.status !== 1) {
+    console.log(eRelayMessageTxResult);
+    throw new Error('failed to call relayMessageFromFuelBlock');
+  }
+  console.log('');
+
+  // the sent ETH is now spendable on Fuel
+  console.log('ETH was bridged to Ethereum successfully!!');
+  console.log('');
+
+  // note balances of both accounts after transfer
+  console.log('Account balances:');
+  console.log('  Ethereum - ' + formatEther(await ethereumAccount.getBalance()) + ' ETH (' + ethereumAccountAddress + ')');
+  console.log('  Fuel - ' + fuels_formatEther(await fuelAccount.getBalance(ZeroBytes32)) + ' ETH (' + fuelAccountAddress + ')');
+  console.log('');
+
+  // done!
+  console.log('');
+  console.log('END');
+  console.log('');
+})();
 
 // The BlockHeader structure.
 class BlockHeader {
@@ -43,144 +160,3 @@ class MessageOutput {
     public data: string
   ) {}
 }
-
-describe('Transferring ETH', async function () {
-  /*
-	const ETH_ASSET_ID = "0x0000000000000000000000000000000000000000000000000000000000000000";
-	const DEFAULT_TIMEOUT_MS: number = 20_000;
-	const FUEL_MESSAGE_TIMEOUT_MS: number = 30_000;
-
-	let env: TestEnvironment;
-
-	// override the default test timeout from 2000ms
-	this.timeout(DEFAULT_TIMEOUT_MS);
-
-	before(async () => {
-		env = await setupEnvironment({});
-	});
-
-	describe('Send ETH to Fuel', async () => {
-		const NUM_ETH = "0.1";
-		let ethereumETHSender: Signer;
-		let ethereumETHSenderAddress: string;
-		let ethereumETHSenderBalance: BigNumber;
-		let fuelETHReceiver: AbstractAddress;
-		let fuelETHReceiverAddress: string;
-		let fuelETHReceiverBalance: BN;
-		let fuelETHMessageNonce: BN;
-		before(async () => {
-			ethereumETHSender = env.eth.signers[0];
-			ethereumETHSenderAddress = await ethereumETHSender.getAddress();
-			ethereumETHSenderBalance = await ethereumETHSender.getBalance();
-			fuelETHReceiver = env.fuel.signers[0].address;
-			fuelETHReceiverAddress = fuelETHReceiver.toHexString();
-			fuelETHReceiverBalance = await env.fuel.provider.getBalance(fuelETHReceiver, ETH_ASSET_ID);
-		});
-
-		it('Send ETH via MessagePortal', async () => {
-			// use the FuelMessagePortal to directly send ETH which should be immediately spendable
-			let tx = await env.eth.fuelMessagePortal.connect(ethereumETHSender).sendETH(fuelETHReceiverAddress, {
-				value: parseEther(NUM_ETH)
-			});
-			let result = await tx.wait();
-			expect(result.status).to.equal(1);
-
-			// parse events from logs
-			let event = env.eth.fuelMessagePortal.interface.parseLog(result.logs[0]);
-			fuelETHMessageNonce = new BN(event.args.nonce.toHexString());
-
-			// check that the sender balance has decreased by the expected amount
-			let newSenderBalance = await env.eth.provider.getBalance(ethereumETHSenderAddress);
-			let ethereumETHSenderBalanceMinusGas = ethereumETHSenderBalance.sub(result.gasUsed.mul(result.effectiveGasPrice));
-			expect(newSenderBalance.eq(ethereumETHSenderBalanceMinusGas.sub(parseEther(NUM_ETH)))).to.be.true;
-		});
-
-		it('Wait for ETH to arrive on Fuel', async function() {
-			// override the default test timeout from 2000ms
-			this.timeout(FUEL_MESSAGE_TIMEOUT_MS);
-
-			// wait for message to appear in fuel client
-			expect(await fuels_waitForMessage(env.fuel.provider, fuelETHReceiver, fuelETHMessageNonce, FUEL_MESSAGE_TIMEOUT_MS)).to.not.be.null;
-
-			// check that the recipient balance has increased by the expected amount
-			let newReceiverBalance = await env.fuel.provider.getBalance(fuelETHReceiver, ETH_ASSET_ID);
-			expect(newReceiverBalance.eq(fuelETHReceiverBalance.add(fuels_parseEther(NUM_ETH)))).to.be.true;
-		});
-	});
-
-	describe('Send ETH from Fuel', async () => {
-		const NUM_ETH = "0.1";
-		let fuelETHSender: FuelWallet;
-		let fuelETHSenderAddress: string;
-		let fuelETHSenderBalance: BN;
-		let ethereumETHReceiver: Signer;
-		let ethereumETHReceiverAddress: string;
-		let ethereumETHReceiverBalance: BigNumber;
-		let withdrawMessageProof: MessageProof;
-		before(async () => {
-			fuelETHSender = env.fuel.signers[1];
-			fuelETHSenderAddress = fuelETHSender.address.toHexString();
-			fuelETHSenderBalance = await fuelETHSender.getBalance(ETH_ASSET_ID);
-			ethereumETHReceiver = env.eth.signers[1];
-			ethereumETHReceiverAddress = await ethereumETHReceiver.getAddress();
-			ethereumETHReceiverBalance = await ethereumETHReceiver.getBalance();
-		});
-
-		it('Send ETH via OutputMessage', async () => {
-			// withdraw ETH back to the base chain
-			const tx = await fuelETHSender.withdrawToBaseLayer(Address.fromString(ethereumETHReceiverAddress), fuels_parseEther(NUM_ETH));
-			const result = await tx.waitForResult();
-			expect(result.status.type).to.equal('success');
-
-			// get message proof
-			const messageOutReceipt = <TransactionResultMessageOutReceipt>result.receipts[0];
-			withdrawMessageProof = await env.fuel.provider.getMessageProof(tx.id, messageOutReceipt.messageID);
-
-			// check that the sender balance has decreased by the expected amount
-			let newSenderBalance = await fuelETHSender.getBalance(ETH_ASSET_ID);
-			expect(newSenderBalance.eq(fuelETHSenderBalance.sub(fuels_parseEther(NUM_ETH)))).to.be.true;
-		});
-
-		it('Relay Message from Fuel on Ethereum', async () => {
-			// construct relay message proof data
-			const messageOutput: MessageOutput = {
-				sender: withdrawMessageProof.sender.toHexString(),
-				recipient: withdrawMessageProof.recipient.toHexString(),
-				amount: withdrawMessageProof.amount.toHex(),
-				nonce: withdrawMessageProof.nonce,
-				data: withdrawMessageProof.data,
-			};
-			const blockHeader: BlockHeader = {
-				prevRoot: withdrawMessageProof.header.prevRoot,
-				height: withdrawMessageProof.header.height.toHex(),
-				timestamp: (new BN(withdrawMessageProof.header.time)).toHex(),
-				daHeight: withdrawMessageProof.header.daHeight.toHex(),
-				txCount: withdrawMessageProof.header.transactionsCount.toHex(),
-				outputMessagesCount: withdrawMessageProof.header.outputMessagesCount.toHex(),
-				txRoot: withdrawMessageProof.header.transactionsRoot,
-				outputMessagesRoot: withdrawMessageProof.header.outputMessagesRoot,
-			};
-			const messageInBlockProof = {
-				key: withdrawMessageProof.proofIndex.toNumber(),
-				proof: withdrawMessageProof.proofSet.slice(0, -1),
-			};
-			
-			// relay message
-			await expect(
-				env.eth.fuelMessagePortal.relayMessageFromFuelBlock(
-					messageOutput,
-					blockHeader,
-					messageInBlockProof,
-					withdrawMessageProof.signature,
-				)
-			).to.not.be.reverted;
-		});
-
-		it('Check ETH arrived on Ethereum', async () => {
-			// check that the recipient balance has increased by the expected amount
-			let newReceiverBalance = await ethereumETHReceiver.getBalance();
-			expect(newReceiverBalance.eq(ethereumETHReceiverBalance.add(parseEther(NUM_ETH)))).to.be.true;
-		});
-	});
-	*/
-});
