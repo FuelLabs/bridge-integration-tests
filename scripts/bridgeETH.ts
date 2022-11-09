@@ -77,7 +77,6 @@ const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
 
   // withdraw ETH back to the base chain
   console.log('Sending ' + ETH_AMOUNT + ' ETH from Fuel...');
-  //TODO: this should be the fuelAccount sending, but there is currently an issue in the TS SDK when coinsToSpend returns messages
   const fWithdrawTx = await fuelAccount.withdrawToBaseLayer(Address.fromString(ethereumAccountAddress), fuels_parseEther(ETH_AMOUNT));
   const fWithdrawTxResult = await fWithdrawTx.waitForResult();
   if (fWithdrawTxResult.status.type !== 'success') {
