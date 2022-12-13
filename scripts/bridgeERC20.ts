@@ -39,8 +39,8 @@ const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
     // TODO: use config time values in sway contracts so we don't have to hardcode
     // these values and can create a new test token contract each time. These values
     // were taken directly from what was compiled into the fuel fungible-token binary
-    const expectedGatewayContractId = '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9';
-    const expectedTokenContractId = '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9';
+    const expectedGatewayContractId = '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707';
+    const expectedTokenContractId = '0x0165878A594ca255338adfa4d48449f69242Eb8F';
     console.log("Creating token contracts...");
     console.log("");
 
@@ -59,6 +59,8 @@ const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
     // check that values for the test token and gateway contract match what
     // was compiled into the bridge-fungible-token binaries
     if(gatewayContract.address != expectedGatewayContractId || ethTestToken.address != expectedTokenContractId || (await ethTestToken.decimals()) != 18) {
+      console.log(gatewayContract.address)
+      console.log(ethTestToken.address)
       throw new Error("failed to connect or create the Ethereum side ERC-20 contract");
     }
 

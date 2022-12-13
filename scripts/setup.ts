@@ -45,7 +45,7 @@ export interface TestEnvironment {
 
 // The setup method for Fuel
 export async function setupEnvironment(opts: SetupOptions): Promise<TestEnvironment> {
-  const http_ethereum_client: string = opts.http_ethereum_client || 'http://127.0.0.1:9545';
+  const http_ethereum_client: string = opts.http_ethereum_client || 'http://127.0.0.1:8545';
   const http_deployer: string = opts.http_deployer || 'http://127.0.0.1:8080';
   const http_fuel_client: string = opts.http_fuel_client || 'http://127.0.0.1:4000';
   const pk_eth_deployer: string =
@@ -134,7 +134,7 @@ export async function setupEnvironment(opts: SetupOptions): Promise<TestEnvironm
   // Get contract addresses from http_deployer
   let deployerAddresses: any = null;
   try {
-    deployerAddresses = (await axios.get(http_deployer + '/addresses.json')).data;
+    deployerAddresses = (await axios.get(http_deployer + '/deployments.local.json')).data;
   } catch (e) {
     throw new Error(
       'Failed to connect to the deployer at (' + http_deployer + "). Are you sure it's running?"

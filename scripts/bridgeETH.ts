@@ -114,6 +114,7 @@ const FUEL_MESSAGE_TIMEOUT_MS = 60_000;
 
   // relay message on Ethereum
   console.log('Relaying message on Ethereum...');
+  console.log(await env.eth.fuelSidechainConsensus.s_authorityKey());
   const eRelayMessageTx = await fuelMessagePortal.relayMessageFromFuelBlock(
     messageOutput,
     blockHeader,
