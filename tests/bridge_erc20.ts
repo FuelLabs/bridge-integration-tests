@@ -90,22 +90,13 @@ describe('Bridging ERC20 tokens', async function () {
     expect(await eth_testToken.decimals()).to.equal(18);
 
     // mint tokens as starting balances
-    await expect(eth_testToken.mint(await env.eth.deployer.getAddress(), 10_000)).to.not.be
-      .reverted;
-    await expect(eth_testToken.mint(await env.eth.signers[0].getAddress(), 10_000)).to.not.be
-      .reverted;
-    await expect(eth_testToken.mint(await env.eth.signers[1].getAddress(), 10_000)).to.not.be
-      .reverted;
+    await expect(eth_testToken.mint(await env.eth.deployer.getAddress(), 10_000)).to.not.be.reverted;
+    await expect(eth_testToken.mint(await env.eth.signers[0].getAddress(), 10_000)).to.not.be.reverted;
+    await expect(eth_testToken.mint(await env.eth.signers[1].getAddress(), 10_000)).to.not.be.reverted;
 
     // setup fuel client and setup l2 side contract for ERC20
-    const bytecode = readFileSync(
-      join(__dirname, '../bridge-fungible-token/bridge_fungible_token.bin')
-    );
-    const factory = new ContractFactory(
-      bytecode,
-      FuelFungibleTokenContractABI_json,
-      env.fuel.deployer
-    );
+    const bytecode = readFileSync(join(__dirname, '../bridge-fungible-token/bridge_fungible_token.bin'));
+    const factory = new ContractFactory(bytecode, FuelFungibleTokenContractABI_json, env.fuel.deployer);
     fuel_testToken = await factory.deployContract();
     fuel_testTokenId = fuel_testToken.id.toHexString();
   });
@@ -127,19 +118,13 @@ describe('Bridging ERC20 tokens', async function () {
       ethereumTokenSenderBalance = await eth_testToken.balanceOf(ethereumTokenSenderAddress);
       fuelTokenReceiver = env.fuel.signers[0].address;
       fuelTokenReceiverAddress = fuelTokenReceiver.toHexString();
-      fuelTokenReceiverBalance = await env.fuel.provider.getBalance(
-        fuelTokenReceiver,
-        fuel_testTokenId
-      );
+      fuelTokenReceiverBalance = await env.fuel.provider.getBalance(fuelTokenReceiver, fuel_testTokenId);
     });
 
     it('Bridge ERC20 via L1ERC20Gateway', async () => {
       // approve l1 side gateway to spend the tokens
-      await expect(
-        eth_testToken
-          .connect(ethereumTokenSender)
-          .approve(env.eth.l1ERC20Gateway.address, NUM_TOKENS)
-      ).to.not.be.reverted;
+      await expect(eth_testToken.connect(ethereumTokenSender).approve(env.eth.l1ERC20Gateway.address, NUM_TOKENS)).to
+        .not.be.reverted;
 
       // use the L1ERC20Gateway to deposit test tokens and receive equivalent tokens on Fuel
       let tx = await env.eth.l1ERC20Gateway
@@ -176,12 +161,8 @@ describe('Bridging ERC20 tokens', async function () {
 
     it('Check ERC20 arrived on Fuel', async () => {
       // check that the recipient balance has increased by the expected amount
-      let newReceiverBalance = await env.fuel.provider.getBalance(
-        fuelTokenReceiver,
-        fuel_testTokenId
-      );
-      expect(newReceiverBalance.eq(fuelTokenReceiverBalance.add(NUM_TOKENS / DECIMAL_DIFF))).to.be
-        .true;
+      let newReceiverBalance = await env.fuel.provider.getBalance(fuelTokenReceiver, fuel_testTokenId);
+      expect(newReceiverBalance.eq(fuelTokenReceiverBalance.add(NUM_TOKENS / DECIMAL_DIFF))).to.be.true;
     });
   });
 
@@ -220,10 +201,7 @@ describe('Bridging ERC20 tokens', async function () {
 
       // get message proof
       const messageOutReceipt = <TransactionResultMessageOutReceipt>result.receipts[1];
-      withdrawMessageProof = await env.fuel.provider.getMessageProof(
-        tx.id,
-        messageOutReceipt.messageID
-      );
+      withdrawMessageProof = await env.fuel.provider.getMessageProof(tx.id, messageOutReceipt.messageID);
 
       // check that the sender balance has decreased by the expected amount
       let newSenderBalance = await fuelTokenSender.getBalance(fuel_testTokenId);
