@@ -208,20 +208,15 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
   // withdraw tokens back to the base chain
   console.log(`Sending ${TOKEN_AMOUNT} Tokens from Fuel...`);
   const paddedAddress = '0x' + ethAccountAddr.slice(2).padStart(64, '0');
-  const scope = await fuelTestToken.functions.withdraw_to(paddedAddress).callParams({
-    forward: { amount: fuels_parseToken(TOKEN_AMOUNT, 9), assetId: fuelTestTokenId },
-  });
-  scope.transactionRequest.gasLimit = new BN(fuelTxParams.gasLimit);
-  scope.transactionRequest.gasPrice = new BN(fuelTxParams.gasPrice);
-  scope.fundWithRequiredCoins();
-  // TODO: why is the sdk not doing this in the line above?
-  const fee = scope.transactionRequest.calculateFee();
-  const coins = await fuelAccount.getCoinsToSpend([fee]);
-  scope.transactionRequest.addCoins(coins);
-  // TODO: end of code block of previous TODO
+  const scope = fuelTestToken.functions
+    .withdraw_to(paddedAddress)
+    .callParams({
+      forward: { amount: fuels_parseToken(TOKEN_AMOUNT, 9), assetId: fuelTestTokenId },
+    })
+    .txParams(fuelTxParams);
   scope.transactionRequest.addMessageOutputs(1);
-  const fWithdrawTx = await fuelAccount.sendTransaction(scope.transactionRequest);
-  const fWithdrawTxResult = await fWithdrawTx.waitForResult();
+  const fWithdrawTx = await scope.call();
+  const fWithdrawTxResult = fWithdrawTx.transactionResult;
   if (fWithdrawTxResult.status.type !== 'success') {
     console.log(fWithdrawTxResult);
     throw new Error('failed to withdraw tokens to ethereum');
@@ -230,7 +225,10 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
   // get message proof
   console.log('Building message proof...');
   const messageOutReceipt = <TransactionResultMessageOutReceipt>fWithdrawTxResult.receipts[1];
-  const withdrawMessageProof = await env.fuel.provider.getMessageProof(fWithdrawTx.id, messageOutReceipt.messageID);
+  const withdrawMessageProof = await env.fuel.provider.getMessageProof(
+    fWithdrawTx.transactionId,
+    messageOutReceipt.messageID
+  );
   await delay(20_000); // even though the timelock is 0, we still wait a bit in case the fuel clock is running fast
 
   // construct relay message proof data

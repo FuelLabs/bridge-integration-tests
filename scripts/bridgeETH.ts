@@ -79,6 +79,7 @@ const FUEL_GAS_PRICE = 1;
   console.log('');
 
   // TODO: the below step is only there to avoid a bug in the SDK when a wallet has spendable messages
+  /*
   console.log('[BUG FIX] Converting message input to coin input...');
   const fMessageToCoinTx = await fuels_messageToCoin(fuelAccount, depositMessage, fuelTxParams);
   const fMessageToCoinTxResult = await fMessageToCoinTx.waitForResult();
@@ -89,6 +90,7 @@ const FUEL_GAS_PRICE = 1;
   console.log(`  Ethereum - ${formatEther(await ethereumAccount.getBalance())} ETH (${ethereumAccountAddress})`);
   console.log(`  Fuel - ${fuels_formatEther(await fuelAccount.getBalance(ZeroBytes32))} ETH (${fuelAccountAddress})`);
   console.log('');
+  */
 
   /////////////////////////////
   // Bridge Fuel -> Ethereum //
@@ -138,7 +140,6 @@ const FUEL_GAS_PRICE = 1;
 
   // relay message on Ethereum
   console.log('Relaying message on Ethereum...');
-  console.log(await env.eth.fuelSidechainConsensus.s_authorityKey());
   const eRelayMessageTx = await fuelMessagePortal.relayMessageFromFuelBlock(
     messageOutput,
     blockHeader,

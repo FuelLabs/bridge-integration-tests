@@ -197,7 +197,7 @@ const COMMON_RELAYABLE_MESSAGES: CommonMessageDetails[] = [
       transaction.inputs.push({
         type: InputType.Coin,
         id: gas_coin.id,
-        owner: gas_coin.owner,
+        owner: hexlify(gas_coin.owner.toBytes()),
         amount: gas_coin.amount,
         assetId: ZeroBytes32,
         txPointer: ZeroBytes32,
@@ -209,7 +209,7 @@ const COMMON_RELAYABLE_MESSAGES: CommonMessageDetails[] = [
       });
       transaction.outputs.push({
         type: OutputType.Change,
-        to: gas_coin.owner,
+        to: hexlify(gas_coin.owner.toBytes()),
         assetId: ZeroBytes32,
       });
       transaction.outputs.push({
