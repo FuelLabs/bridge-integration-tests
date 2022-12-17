@@ -78,20 +78,6 @@ const FUEL_GAS_PRICE = 1;
   console.log(`  Fuel - ${fuels_formatEther(await fuelAccount.getBalance(ZeroBytes32))} ETH (${fuelAccountAddress})`);
   console.log('');
 
-  // TODO: the below step is only there to avoid a bug in the SDK when a wallet has spendable messages
-  /*
-  console.log('[BUG FIX] Converting message input to coin input...');
-  const fMessageToCoinTx = await fuels_messageToCoin(fuelAccount, depositMessage, fuelTxParams);
-  const fMessageToCoinTxResult = await fMessageToCoinTx.waitForResult();
-  if (fMessageToCoinTxResult.status.type !== 'success') {
-    console.log(fMessageToCoinTxResult);
-    throw new Error('failed to convert message to coin');
-  }
-  console.log(`  Ethereum - ${formatEther(await ethereumAccount.getBalance())} ETH (${ethereumAccountAddress})`);
-  console.log(`  Fuel - ${fuels_formatEther(await fuelAccount.getBalance(ZeroBytes32))} ETH (${fuelAccountAddress})`);
-  console.log('');
-  */
-
   /////////////////////////////
   // Bridge Fuel -> Ethereum //
   /////////////////////////////
