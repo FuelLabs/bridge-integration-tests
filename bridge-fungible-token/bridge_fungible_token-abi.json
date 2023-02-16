@@ -189,7 +189,20 @@
         "name": "",
         "type": 0,
         "typeArguments": null
-      }
+      },
+      "attributes": [
+        {
+          "name": "payable",
+          "arguments": []
+        },
+        {
+          "name": "storage",
+          "arguments": [
+            "read",
+            "write"
+          ]
+        }
+      ]
     },
     {
       "inputs": [
@@ -209,7 +222,16 @@
         "name": "",
         "type": 0,
         "typeArguments": null
-      }
+      },
+      "attributes": [
+        {
+          "name": "storage",
+          "arguments": [
+            "read",
+            "write"
+          ]
+        }
+      ]
     },
     {
       "inputs": [],
@@ -218,7 +240,8 @@
         "name": "",
         "type": 11,
         "typeArguments": null
-      }
+      },
+      "attributes": null
     },
     {
       "inputs": [],
@@ -227,7 +250,8 @@
         "name": "",
         "type": 11,
         "typeArguments": null
-      }
+      },
+      "attributes": null
     },
     {
       "inputs": [],
@@ -236,7 +260,8 @@
         "name": "",
         "type": 1,
         "typeArguments": null
-      }
+      },
+      "attributes": null
     },
     {
       "inputs": [],
@@ -245,7 +270,8 @@
         "name": "",
         "type": 4,
         "typeArguments": null
-      }
+      },
+      "attributes": null
     },
     {
       "inputs": [],
@@ -254,7 +280,8 @@
         "name": "",
         "type": 4,
         "typeArguments": null
-      }
+      },
+      "attributes": null
     },
     {
       "inputs": [
@@ -269,7 +296,13 @@
         "name": "",
         "type": 0,
         "typeArguments": null
-      }
+      },
+      "attributes": [
+        {
+          "name": "payable",
+          "arguments": []
+        }
+      ]
     }
   ],
   "loggedTypes": [
@@ -353,5 +386,7 @@
         "typeArguments": []
       }
     }
-  ]
+  ],
+  "messagesTypes": [],
+  "configurables": []
 }

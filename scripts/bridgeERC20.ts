@@ -37,7 +37,7 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
   const fuelAccount = env.fuel.signers[1];
   const fuelAccountAddr = fuelAccount.address.toHexString();
   const fuelMessagePortal = env.eth.fuelMessagePortal.connect(ethAccount);
-  const gatewayContract = env.eth.l1ERC20Gateway.connect(ethAccount);
+  const gatewayContract = env.eth.fuelERC20Gateway.connect(ethAccount);
   const fuelTxParams = {
     gasLimit: process.env.FUEL_GAS_LIMIT || FUEL_GAS_LIMIT,
     gasPrice: process.env.FUEL_GAS_PRICE || FUEL_GAS_PRICE,
@@ -139,7 +139,7 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
   );
   console.log('');
 
-  // approve l1 gateway to spend the tokens
+  // approve fuel erc20 gateway to spend the tokens
   console.log('Approving Tokens for gateway...');
   const eApproveTx = await ethTestToken.approve(gatewayContract.address, ethers_parseToken(TOKEN_AMOUNT, 18));
   const eApproveTxResult = await eApproveTx.wait();
@@ -148,7 +148,7 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
     throw new Error('failed to approve Token for transfer');
   }
 
-  // use the L1ERC20Gateway to deposit test tokens and receive equivalent tokens on Fuel
+  // use the FuelERC20Gateway to deposit test tokens and receive equivalent tokens on Fuel
   console.log(`Sending ${TOKEN_AMOUNT} Tokens from Ethereum...`);
   const eDepositTx = await gatewayContract.deposit(
     fuelAccountAddr,
@@ -229,6 +229,7 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
     fWithdrawTx.transactionId,
     messageOutReceipt.messageID
   );
+  console.log("Waiting to be sure timelock is over...");
   await delay(20_000); // even though the timelock is 0, we still wait a bit in case the fuel clock is running fast
 
   // construct relay message proof data
