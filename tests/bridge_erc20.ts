@@ -186,10 +186,10 @@ describe('Bridging ERC20 tokens', async function () {
 
     it('Bridge ERC20 via Fuel token contract', async () => {
       // withdraw tokens back to the base chain
-      fuel_testToken.wallet = fuelTokenSender;
+      fuel_testToken.account = fuelTokenSender;
       const paddedAddress = '0x' + ethereumTokenReceiverAddress.slice(2).padStart(64, '0');
       const scope = await fuel_testToken.functions
-        .withdraw_to(paddedAddress)
+        .withdraw(paddedAddress)
         .callParams({
           forward: { amount: NUM_TOKENS / DECIMAL_DIFF, assetId: fuel_testTokenId },
         })

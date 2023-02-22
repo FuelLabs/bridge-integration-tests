@@ -49,7 +49,7 @@ const FUEL_GAS_PRICE = 1;
   const eSendTxResult = await eSendTx.wait();
   if (eSendTxResult.status !== 1) {
     console.log(eSendTxResult);
-    throw new Error('failed to call sendETH');
+    throw new Error('failed to call depositETH');
   }
 
   // parse events from logs to get the message nonce

@@ -131,7 +131,7 @@ const COMMON_RELAYABLE_MESSAGES: CommonMessageDetails[] = [
       const predicate = arrayify(details.predicate);
 
       // find a UTXO that can cover gas costs
-      let coins = (await relayer.getCoins()).filter((coin) => coin.assetId == ZeroBytes32 && coin.amount.gt(minGas));
+      let coins = (await relayer.getCoins()).filter((coin) => coin.assetId == ZeroBytes32 && coin.status == "UNSPENT" && coin.amount.gt(minGas));
       if (coins.length == 0) throw new Error('wallet has no single UTXO that can cover gas costs');
       let gas_coin = coins[0];
 

@@ -37,12 +37,12 @@
           "typeArguments": null
         },
         {
-          "name": "BridgedValueIncompatability",
+          "name": "OverflowError",
           "type": 0,
           "typeArguments": null
         },
         {
-          "name": "OverflowError",
+          "name": "UnderflowError",
           "type": 0,
           "typeArguments": null
         }
@@ -192,17 +192,47 @@
       },
       "attributes": [
         {
-          "name": "payable",
-          "arguments": []
-        },
-        {
           "name": "storage",
           "arguments": [
             "read",
             "write"
           ]
+        },
+        {
+          "name": "payable",
+          "arguments": []
         }
       ]
+    },
+    {
+      "inputs": [],
+      "name": "bridged_token",
+      "output": {
+        "name": "",
+        "type": 1,
+        "typeArguments": null
+      },
+      "attributes": null
+    },
+    {
+      "inputs": [],
+      "name": "bridged_token_decimals",
+      "output": {
+        "name": "",
+        "type": 11,
+        "typeArguments": null
+      },
+      "attributes": null
+    },
+    {
+      "inputs": [],
+      "name": "bridged_token_gateway",
+      "output": {
+        "name": "",
+        "type": 1,
+        "typeArguments": null
+      },
+      "attributes": null
     },
     {
       "inputs": [
@@ -245,26 +275,6 @@
     },
     {
       "inputs": [],
-      "name": "layer1_decimals",
-      "output": {
-        "name": "",
-        "type": 11,
-        "typeArguments": null
-      },
-      "attributes": null
-    },
-    {
-      "inputs": [],
-      "name": "layer1_token",
-      "output": {
-        "name": "",
-        "type": 1,
-        "typeArguments": null
-      },
-      "attributes": null
-    },
-    {
-      "inputs": [],
       "name": "name",
       "output": {
         "name": "",
@@ -291,7 +301,7 @@
           "typeArguments": null
         }
       ],
-      "name": "withdraw_to",
+      "name": "withdraw",
       "output": {
         "name": "",
         "type": 0,

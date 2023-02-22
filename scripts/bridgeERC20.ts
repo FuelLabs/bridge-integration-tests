@@ -95,7 +95,7 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
     fuelTestToken = await factory.deployContract();
     console.log(`Fuel fungible token contract created at ${fuelTestToken.id.toHexString()}.`);
   }
-  fuelTestToken.wallet = fuelAccount;
+  fuelTestToken.account = fuelAccount;
   const fuelTestTokenId = fuelTestToken.id.toHexString();
   console.log(`Testing with Fuel fungible token contract at ${fuelTestTokenId}.`);
 
@@ -110,18 +110,23 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
   console.log('');
 
   // verify compatability between the two token contracts
-  // TODO: also verify the gateway contract matches on the fuel side fungible token contract
-  const l1Decimals = parseInt('' + (await fuelTestToken.functions.layer1_decimals().dryRun()).value);
-  const actualL1Decimals = parseInt('' + (await ethTestToken.decimals()));
-  if (l1Decimals != actualL1Decimals) {
+  const l1Decimals = parseInt('' + (await fuelTestToken.functions.bridged_token_decimals().dryRun()).value);
+  const expectedL1Decimals = parseInt('' + (await ethTestToken.decimals()));
+  if (l1Decimals != expectedL1Decimals) {
     throw new Error(
-      `Expected L1 decimals from the Fuel token contract does not match the actual L1 decimals [expected:${l1Decimals}, actual:${actualL1Decimals}].`
+      `L1 decimals from the Fuel token contract does not match the actual L1 decimals [expected:${expectedL1Decimals}, actual:${l1Decimals}].`
     );
   }
-  const l1Token = '0x' + (await fuelTestToken.functions.layer1_token().dryRun()).value.substring(26);
+  const l1Token = '0x' + (await fuelTestToken.functions.bridged_token().dryRun()).value.substring(26);
   if (l1Token.toLowerCase() != ethTestTokenAddress.toLowerCase()) {
     throw new Error(
-      `Expected L1 token address from the Fuel token contract does not match the actual L1 token address [expected:${l1Token}, actual:${ethTestTokenAddress}].`
+      `L1 token address from the Fuel token contract does not match the actual L1 token address [expected:${ethTestTokenAddress}, actual:${l1Token}].`
+    );
+  }
+  const l1Gateway = '0x' + (await fuelTestToken.functions.bridged_token_gateway().dryRun()).value.substring(26);
+  if (l1Gateway.toLowerCase() != env.eth.fuelERC20Gateway.address.toLowerCase()) {
+    throw new Error(
+      `L1 token gateway address from the Fuel token contract does not match the actual L1 token gateway address [expected:${env.eth.fuelERC20Gateway.address}, actual:${l1Gateway}].`
     );
   }
 
@@ -209,7 +214,7 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
   console.log(`Sending ${TOKEN_AMOUNT} Tokens from Fuel...`);
   const paddedAddress = '0x' + ethAccountAddr.slice(2).padStart(64, '0');
   const scope = fuelTestToken.functions
-    .withdraw_to(paddedAddress)
+    .withdraw(paddedAddress)
     .callParams({
       forward: { amount: fuels_parseToken(TOKEN_AMOUNT, 9), assetId: fuelTestTokenId },
     })
