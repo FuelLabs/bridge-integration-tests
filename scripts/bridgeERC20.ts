@@ -7,6 +7,7 @@ import { Token__factory } from '../fuel-v2-contracts/factories/Token__factory';
 import FuelFungibleTokenContractABI_json from '../bridge-fungible-token/bridge_fungible_token-abi.json';
 import { Address, BN, Contract, TransactionResultMessageOutReceipt } from 'fuels';
 import {
+  BlockHeaderLite,
   delay,
   ethers_formatToken,
   ethers_parseToken,
@@ -14,7 +15,9 @@ import {
   fuels_parseToken,
   fuels_relayCommonMessage,
   fuels_waitForMessage,
+  mockBlockFinalization,
 } from '../scripts/utils';
+import { keccak256, toUtf8Bytes } from 'ethers/lib/utils';
 
 const TOKEN_AMOUNT = '10';
 const FUEL_MESSAGE_TIMEOUT_MS = 1_000_000;
@@ -32,12 +35,12 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
   const env: TestEnvironment = await setupEnvironment({});
   const ethDeployer = env.eth.deployer;
   const ethDeployerAddr = await ethDeployer.getAddress();
-  const ethAccount = env.eth.signers[1];
-  const ethAccountAddr = await ethAccount.getAddress();
-  const fuelAccount = env.fuel.signers[1];
-  const fuelAccountAddr = fuelAccount.address.toHexString();
-  const fuelMessagePortal = env.eth.fuelMessagePortal.connect(ethAccount);
-  const gatewayContract = env.eth.fuelERC20Gateway.connect(ethAccount);
+  const ethAcct = env.eth.signers[1];
+  const ethAcctAddr = await ethAcct.getAddress();
+  const fuelAcct = env.fuel.signers[1];
+  const fuelAcctAddr = fuelAcct.address.toHexString();
+  const fuelMessagePortal = env.eth.fuelMessagePortal.connect(ethAcct);
+  const gatewayContract = env.eth.fuelERC20Gateway.connect(ethAcct);
   const fuelTxParams = {
     gasLimit: process.env.FUEL_GAS_LIMIT || FUEL_GAS_LIMIT,
     gasPrice: process.env.FUEL_GAS_PRICE || FUEL_GAS_PRICE,
@@ -71,7 +74,7 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
     await ethTestToken.deployed();
     console.log(`Ethereum ERC-20 token contract created at address ${ethTestToken.address}.`);
   }
-  ethTestToken = ethTestToken.connect(ethAccount);
+  ethTestToken = ethTestToken.connect(ethAcct);
   const ethTestTokenAddress = ethTestToken.address;
   console.log(`Testing with Ethereum ERC-20 token contract at ${ethTestTokenAddress}.`);
 
@@ -79,7 +82,7 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
   let fuelTestToken: Contract = null;
   if (FUEL_FUNGIBLE_TOKEN_ADDRESS) {
     try {
-      fuelTestToken = new Contract(FUEL_FUNGIBLE_TOKEN_ADDRESS, FuelFungibleTokenContractABI_json, fuelAccount);
+      fuelTestToken = new Contract(FUEL_FUNGIBLE_TOKEN_ADDRESS, FuelFungibleTokenContractABI_json, fuelAcct);
       await fuelTestToken.functions.name().dryRun();
     } catch (e) {
       fuelTestToken = null;
@@ -92,19 +95,17 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
     console.log(`Creating Fuel fungible token contract to test with...`);
     const bytecode = readFileSync(join(__dirname, '../bridge-fungible-token/bridge_fungible_token.bin'));
     const factory = new ContractFactory(bytecode, FuelFungibleTokenContractABI_json, env.fuel.deployer);
-    fuelTestToken = await factory.deployContract();
+    fuelTestToken = await factory.deployContract(fuelTxParams);
     console.log(`Fuel fungible token contract created at ${fuelTestToken.id.toHexString()}.`);
   }
-  fuelTestToken.account = fuelAccount;
+  fuelTestToken.account = fuelAcct;
   const fuelTestTokenId = fuelTestToken.id.toHexString();
   console.log(`Testing with Fuel fungible token contract at ${fuelTestTokenId}.`);
 
   // mint tokens as starting balances
-  if ((await ethTestToken.balanceOf(ethAccountAddr)) <= ethers_parseToken(TOKEN_AMOUNT, 18).mul(2)) {
+  if ((await ethTestToken.balanceOf(ethAcctAddr)) <= ethers_parseToken(TOKEN_AMOUNT, 18).mul(2)) {
     console.log(`Minting ERC-20 tokens to test with...`);
-    const tokenMintTx1 = await ethTestToken
-      .connect(env.eth.deployer)
-      .mint(ethAccountAddr, ethers_parseToken('100', 18));
+    const tokenMintTx1 = await ethTestToken.connect(env.eth.deployer).mint(ethAcctAddr, ethers_parseToken('100', 18));
     await tokenMintTx1.wait();
   }
   console.log('');
@@ -136,12 +137,8 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
 
   // note balances of both accounts before transfer
   console.log('Account balances:');
-  console.log(
-    `  Ethereum - ${ethers_formatToken(await ethTestToken.balanceOf(ethAccountAddr))} Tokens (${ethAccountAddr})`
-  );
-  console.log(
-    `  Fuel - ${fuels_formatToken(await fuelAccount.getBalance(fuelTestTokenId))} Tokens (${fuelAccountAddr})`
-  );
+  console.log(`  Ethereum - ${ethers_formatToken(await ethTestToken.balanceOf(ethAcctAddr))} Tokens (${ethAcctAddr})`);
+  console.log(`  Fuel - ${fuels_formatToken(await fuelAcct.getBalance(fuelTestTokenId))} Tokens (${fuelAcctAddr})`);
   console.log('');
 
   // approve fuel erc20 gateway to spend the tokens
@@ -156,7 +153,7 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
   // use the FuelERC20Gateway to deposit test tokens and receive equivalent tokens on Fuel
   console.log(`Sending ${TOKEN_AMOUNT} Tokens from Ethereum...`);
   const eDepositTx = await gatewayContract.deposit(
-    fuelAccountAddr,
+    fuelAcctAddr,
     ethTestToken.address,
     fuelTestTokenId,
     ethers_parseToken(TOKEN_AMOUNT, 18)
@@ -185,10 +182,12 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
 
   // relay the message to the target contract
   console.log('Relaying message on Fuel...');
-  const fMessageRelayTx = await fuels_relayCommonMessage(fuelAccount, depositMessage, fuelTxParams);
+  const fMessageRelayTx = await fuels_relayCommonMessage(fuelAcct, depositMessage, fuelTxParams);
   const fMessageRelayTxResult = await fMessageRelayTx.waitForResult();
   if (fMessageRelayTxResult.status.type !== 'success') {
     console.log(fMessageRelayTxResult);
+    console.log(fMessageRelayTxResult.transaction.inputs);
+    console.log(fMessageRelayTxResult.transaction.outputs);
     throw new Error('failed to relay message from gateway');
   }
   console.log('');
@@ -198,12 +197,8 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
 
   // note balances of both accounts after transfer
   console.log('Account balances:');
-  console.log(
-    `  Ethereum - ${ethers_formatToken(await ethTestToken.balanceOf(ethAccountAddr))} Tokens (${ethAccountAddr})`
-  );
-  console.log(
-    `  Fuel - ${fuels_formatToken(await fuelAccount.getBalance(fuelTestTokenId))} Tokens (${fuelAccountAddr})`
-  );
+  console.log(`  Ethereum - ${ethers_formatToken(await ethTestToken.balanceOf(ethAcctAddr))} Tokens (${ethAcctAddr})`);
+  console.log(`  Fuel - ${fuels_formatToken(await fuelAcct.getBalance(fuelTestTokenId))} Tokens (${fuelAcctAddr})`);
   console.log('');
 
   /////////////////////////////
@@ -212,7 +207,7 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
 
   // withdraw tokens back to the base chain
   console.log(`Sending ${TOKEN_AMOUNT} Tokens from Fuel...`);
-  const paddedAddress = '0x' + ethAccountAddr.slice(2).padStart(64, '0');
+  const paddedAddress = '0x' + ethAcctAddr.slice(2).padStart(64, '0');
   const scope = fuelTestToken.functions
     .withdraw(paddedAddress)
     .callParams({
@@ -234,11 +229,7 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
     fWithdrawTx.transactionId,
     messageOutReceipt.messageID
   );
-  console.log("Waiting to be sure timelock is over...");
-  await delay(20_000); // even though the timelock is 0, we still wait a bit in case the fuel clock is running fast
-
-  // construct relay message proof data
-  const messageOutput: MessageOutput = {
+  const messageOut: MessageOut = {
     sender: withdrawMessageProof.sender.toHexString(),
     recipient: withdrawMessageProof.recipient.toHexString(),
     amount: withdrawMessageProof.amount.toHex(),
@@ -260,13 +251,28 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
     proof: withdrawMessageProof.proofSet.slice(0, -1),
   };
 
+  // wait for block header finalization
+  const committerRole = keccak256(toUtf8Bytes('COMMITTER_ROLE'));
+  const deployerAddress = await env.eth.deployer.getAddress();
+  const isDeployerComitter = await env.eth.fuelChainConsensus.hasRole(committerRole, deployerAddress);
+  let rootBlock: BlockHeaderLite = null;
+  let blockInHistoryProof: any = null;
+  if (isDeployerComitter) {
+    // commit and finalize a mock block to prove the message from
+    [rootBlock, blockInHistoryProof] = await mockBlockFinalization(env, withdrawMessageProof);
+  } else {
+    // will need to wait for more blocks to be built and then a block to be comitted to the consensus contract
+    throw new Error('Cannot make block commits');
+  }
+
   // relay message on Ethereum
   console.log('Relaying message on Ethereum...');
-  const eRelayMessageTx = await fuelMessagePortal.relayMessageFromFuelBlock(
-    messageOutput,
+  const eRelayMessageTx = await fuelMessagePortal.relayMessage(
+    messageOut,
+    rootBlock,
     blockHeader,
-    messageInBlockProof,
-    withdrawMessageProof.signature
+    blockInHistoryProof,
+    messageInBlockProof
   );
   const eRelayMessageTxResult = await eRelayMessageTx.wait();
   if (eRelayMessageTxResult.status !== 1) {
@@ -280,12 +286,8 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
 
   // note balances of both accounts after transfer
   console.log('Account balances:');
-  console.log(
-    `  Ethereum - ${ethers_formatToken(await ethTestToken.balanceOf(ethAccountAddr))} Tokens (${ethAccountAddr})`
-  );
-  console.log(
-    `  Fuel - ${fuels_formatToken(await fuelAccount.getBalance(fuelTestTokenId))} Tokens (${fuelAccountAddr})`
-  );
+  console.log(`  Ethereum - ${ethers_formatToken(await ethTestToken.balanceOf(ethAcctAddr))} Tokens (${ethAcctAddr})`);
+  console.log(`  Fuel - ${fuels_formatToken(await fuelAcct.getBalance(fuelTestTokenId))} Tokens (${fuelAcctAddr})`);
   console.log('');
 
   // done!
@@ -311,8 +313,8 @@ class BlockHeader {
   ) {}
 }
 
-// The MessageOutput structure.
-class MessageOutput {
+// The MessageOut structure.
+class MessageOut {
   constructor(
     public sender: string,
     public recipient: string,

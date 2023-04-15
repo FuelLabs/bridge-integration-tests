@@ -42,6 +42,7 @@ export interface SetupOptions {
 export interface TestEnvironment {
   eth: {
     provider: EthProvider;
+    jsonRPC: string;
     fuelChainConsensus: FuelChainConsensus;
     fuelMessagePortal: FuelMessagePortal;
     fuelERC20Gateway: FuelERC20Gateway;
@@ -168,12 +169,16 @@ export async function setupEnvironment(opts: SetupOptions): Promise<TestEnvironm
     eth_fuelMessagePortalAddress,
     eth_deployer
   );
-  let eth_fuelERC20Gateway: FuelERC20Gateway = FuelERC20Gateway__factory.connect(eth_fuelERC20GatewayAddress, eth_deployer);
+  let eth_fuelERC20Gateway: FuelERC20Gateway = FuelERC20Gateway__factory.connect(
+    eth_fuelERC20GatewayAddress,
+    eth_deployer
+  );
 
   // Return the Fuel harness object
   return {
     eth: {
       provider: eth_provider,
+      jsonRPC: http_ethereum_client,
       fuelChainConsensus: eth_fuelChainConsensus,
       fuelMessagePortal: eth_fuelMessagePortal,
       fuelERC20Gateway: eth_fuelERC20Gateway,

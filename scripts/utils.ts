@@ -1,6 +1,8 @@
 /// @dev The Fuel testing utils.
 /// A set of useful helper methods for the integration test environment.
 import { ethers, BigNumber } from 'ethers';
+import { sha256, solidityPack } from 'ethers/lib/utils';
+import { constructTree, calcRoot, getProof } from '@fuel-ts/merkle';
 import {
   Provider as FuelProvider,
   BN,
@@ -16,7 +18,16 @@ import {
   OutputType,
   TransactionResponse,
   bn,
+  MessageProof,
+  randomBytes,
+  NativeAssetId,
+  Address,
 } from 'fuels';
+import { FuelMessagePortal } from '../fuel-v2-contracts/FuelMessagePortal';
+import { TestEnvironment } from './setup';
+import * as http from 'http';
+import * as https from 'https';
+import * as url from 'url';
 
 // Constants
 const ETHEREUM_ETH_DECIMALS: number = 18;
@@ -105,20 +116,171 @@ export async function fuels_relayCommonMessage(
   return relayer.sendTransaction(transaction);
 }
 
+// Makes sure the latest Fuel block is comitted to the consensus contract and is considered finalized
+// TODO: this will need to be updated to actually use the proofs generated from the fuel client with the regular block production
+export async function mockBlockFinalization(
+  env: TestEnvironment,
+  messageProof: MessageProof
+): Promise<[BlockHeaderLite, any]> {
+  const BLOCKS_PER_COMMIT_INTERVAL = 10800;
+  const TIME_TO_FINALIZE = 10800;
+  const EMPTY = '0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+
+  // create chain related
+  const fuelChainConsensus = env.eth.fuelChainConsensus.connect(env.eth.deployer);
+
+  // create a simple merkle root and proof for the block
+  const targetBlock: BlockHeaderLite = {
+    prevRoot: messageProof.header.prevRoot,
+    height: messageProof.header.height.toHex(),
+    timestamp: new BN(messageProof.header.time).toHex(),
+    applicationHash: messageProof.header.applicationHash,
+  };
+  const targetBlockId = computeBlockHash(targetBlock);
+  const prevRootNodes = constructTree([targetBlockId]);
+  const prevRoot = calcRoot([targetBlockId]);
+  const blockInHistoryProof = {
+    key: 0,
+    proof: getProof(prevRootNodes, 0),
+  };
+
+  // build a simple root block
+  let blockHeight = messageProof.header.height.add(1);
+  const rootBlock = {
+    prevRoot: prevRoot,
+    height: new BN(1).toHex(),
+    timestamp: new BN(messageProof.header.time).toHex(),
+    applicationHash: EMPTY,
+  };
+
+  // commit the made up root block
+  const blockHash = computeBlockHash(rootBlock);
+  const commitBlockTx = await fuelChainConsensus.commit(
+    blockHash,
+    Math.floor(blockHeight.toNumber() / BLOCKS_PER_COMMIT_INTERVAL)
+  );
+  const commitBlockTxResult = await commitBlockTx.wait();
+  if (commitBlockTxResult.status !== 1) {
+    console.log(commitBlockTxResult);
+    throw new Error('failed to call commit on block');
+  }
+
+  // move the clock forward to ensure finalization
+  await providerSend(env.eth.jsonRPC, 'evm_increaseTime', [TIME_TO_FINALIZE]);
+  //env.eth.provider.send('evm_increaseTime', [TIME_TO_FINALIZE]);
+  //curl -H "Content-Type: application/json" -X POST --data '{"jsonrpc":"2.0","method":"web3_clientVersion","params":[],"id":67}' 127.0.0.1:8545
+
+  return [rootBlock, blockInHistoryProof];
+}
+
+// Makes a low level JSON RPC method call
+export function providerSend(jsonRPC: string, method: string, params: [any]) {
+  let u = url.parse(jsonRPC, true);
+  const data = {
+    jsonrpc: '2.0',
+    method: method,
+    params: params,
+    id: 0,
+  };
+
+  return new Promise(function (resolve, reject) {
+    let opt = {
+      host: u.hostname,
+      port: u.port,
+      path: u.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    };
+
+    let cb = function (res) {
+      res.setEncoding('utf8');
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        return reject(new Error('statusCode=' + res.statusCode));
+      }
+
+      var ret = '';
+      res.on('data', (chunk) => {
+        ret += chunk;
+      });
+      res.on('end', () => {
+        try {
+          ret = JSON.parse(ret);
+        } catch (e) {
+          reject(e);
+        }
+        resolve(ret);
+      });
+    };
+    let req = u.protocol == 'http:' ? http.request(opt, cb) : https.request(opt, cb);
+    req.on('error', (err) => reject(err));
+
+    req.write(JSON.stringify(data));
+    req.end();
+  });
+}
+
+// Produce the block consensus header hash
+export function computeBlockHash(blockHeader: BlockHeaderLite): string {
+  const serialized = solidityPack(
+    ['bytes32', 'uint32', 'uint64', 'bytes32'],
+    [blockHeader.prevRoot, blockHeader.height, blockHeader.timestamp, blockHeader.applicationHash]
+  );
+  return sha256(serialized);
+}
+
 // Simple async delay function
 export function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// The BlockHeader structure.
+export class BlockHeader {
+  constructor(
+    // Consensus
+    public prevRoot: string,
+    public height: string,
+    public timestamp: string,
+
+    // Application
+    public daHeight: string,
+    public txCount: string,
+    public outputMessagesCount: string,
+    public txRoot: string,
+    public outputMessagesRoot: string
+  ) {}
+}
+
+// The BlockHeader structure.
+export class BlockHeaderLite {
+  constructor(
+    public prevRoot: string,
+    public height: string,
+    public timestamp: string,
+    public applicationHash: string
+  ) {}
+}
+
+// The MessageOut structure.
+export class MessageOut {
+  constructor(
+    public sender: string,
+    public recipient: string,
+    public amount: string,
+    public nonce: string,
+    public data: string
+  ) {}
+}
+
 // Details for relaying common messages with certain predicate roots
 const COMMON_RELAYABLE_MESSAGES: CommonMessageDetails[] = [
   {
-    name: 'Message To Contract v1.2',
-    predicateRoot: '0x4df15e4a7c602404e353b7766db23a0d067960c201eb2d7a695a166548c4d80a',
+    name: 'Message To Contract v1.3',
+    predicateRoot: '0x6767333817034bfdf74f68bfdb4130438e7ce65a9e4cbadba6b490a265f094dc',
     predicate:
-      '0x900000044700000000000000000002805DFCC00110FFF3001A585000910000E8504D60A0504160C85D47F00F10451300504160C860411020504160C86148000B614400054041244072440020284D04405D47F010104513005040002029413450134100007340009E614400075D43F00813411400134100007340009C6140010113410040134100007340009A614411015D43F0091341140013410000734000985D43F0096141010113410000134100007340009650556020614401137240002028551400505160406144111A5D43F00A15411400734000385D43F00A134114001341000073400094504D60606148111D5D43F00B124404005D43F00B1B4104401045240050496080724000202849140072400020284D2400724000202851340050400020294155101341000073400092504960005D43F0096145010672400020284914005D47F00F1045130050400020294124501341000073400090614400085D43F00813411400134100007340008E6140020113410040134100007340008C614412015D43F00813411400134100007340008A5D43F009614502015D43F00C134114001341000073400088614002051341000013410000734000865D43F00961490105614400025D43F00D1B4514001541244073400077134124401341000073400084614400035D43F00D154114007340007F5D43F00D134114001341000073400082240400005D43F00E364000005D43F00E364000005D43F00E364000005D43F00E364000005D43F00E364000005D43F00E364000005D43F00E364000005D43F00E364000005D43F00E364000005D43F00E364000005D43F00E364000005D43F00E364000005D43F00E364000005D43F00E364000005D43F00E36400000000000000000000000000000000000000000000000000000000000000000000094DE8159A7879EDADA9B0837456A917D4BA4F1EB68CAE2D63AD3DC080BB4B372000000000000000300000000000000020000000000000020000000000000000800000000000000040000000000124F80FFFFFFFFFFFF0004000000000000028000000000000002A0',
-    script:
-      '0x900000044700000000000000000000605DFCC00110FFF3001A40500091000050504D00005049003061440113724000202849140050413000604120205D43F0005F4D00045F4C1005614411171A40A0005D4BF005104923002D4D149024040000000000009532D7AE00000000000000000000000000000000000000000000000000000000000000000000000000000068',
+      '0x1A405000910000206144000B6148000540411480504CC04C72580020295134165B501012615C000772680002595D7001616171015B61A0106165711A5B6400125B5C100B2404000024000000664E627BFC0DB0BFA8F182EFC913B552681143E328B555D9697C40AD0EB527AD',
+    script: '0x1A40500091000050504500205049102461540117614C011D5050C02C60453020604940042D45540A240000009532D7AE',
     buildTx: async (
       relayer: FuelWallet,
       message: Message,
@@ -131,7 +293,9 @@ const COMMON_RELAYABLE_MESSAGES: CommonMessageDetails[] = [
       const predicate = arrayify(details.predicate);
 
       // find a UTXO that can cover gas costs
-      let coins = (await relayer.getCoins()).filter((coin) => coin.assetId == ZeroBytes32 && coin.status == "UNSPENT" && coin.amount.gt(minGas));
+      let coins = (await relayer.getCoins()).filter(
+        (coin) => coin.assetId == ZeroBytes32 && coin.status == 'UNSPENT' && coin.amount.gt(minGas)
+      );
       if (coins.length == 0) throw new Error('wallet has no single UTXO that can cover gas costs');
       let gas_coin = coins[0];
 
@@ -143,11 +307,6 @@ const COMMON_RELAYABLE_MESSAGES: CommonMessageDetails[] = [
       // build the transaction
       const transaction = new ScriptTransactionRequest({ script, gasLimit: minGas, ...txParams });
       transaction.inputs.push({
-        type: InputType.Contract,
-        txPointer: ZeroBytes32,
-        contractId: contractId,
-      });
-      transaction.inputs.push({
         type: InputType.Message,
         amount: message.amount,
         sender: message.sender.toHexString(),
@@ -156,6 +315,11 @@ const COMMON_RELAYABLE_MESSAGES: CommonMessageDetails[] = [
         data: message.data,
         nonce: message.nonce,
         predicate: predicate,
+      });
+      transaction.inputs.push({
+        type: InputType.Contract,
+        txPointer: ZeroBytes32,
+        contractId: contractId,
       });
       transaction.inputs.push({
         type: InputType.Coin,
@@ -168,7 +332,7 @@ const COMMON_RELAYABLE_MESSAGES: CommonMessageDetails[] = [
       });
       transaction.outputs.push({
         type: OutputType.Contract,
-        inputIndex: 0,
+        inputIndex: 1,
       });
       transaction.outputs.push({
         type: OutputType.Change,
@@ -179,6 +343,13 @@ const COMMON_RELAYABLE_MESSAGES: CommonMessageDetails[] = [
         type: OutputType.Variable,
       });
       transaction.witnesses.push('0x');
+
+      console.log("-------------------------------------------------------------------");
+      console.log(transaction.inputs);
+      console.log("-------------------------------------------------------------------");
+      console.log(transaction.outputs);
+      console.log("-------------------------------------------------------------------");
+      
 
       return transaction;
     },

@@ -1,11 +1,14 @@
-import { formatEther, parseEther } from 'ethers/lib/utils';
+import { formatEther, keccak256, parseEther, toUtf8Bytes } from 'ethers/lib/utils';
 import { Address, BN, TransactionResultMessageOutReceipt, ZeroBytes32 } from 'fuels';
 import { TestEnvironment, setupEnvironment } from '../scripts/setup';
 import {
-  delay,
+  BlockHeader,
+  BlockHeaderLite,
+  MessageOut,
   fuels_formatEther,
   fuels_parseEther,
   fuels_waitForMessage,
+  mockBlockFinalization,
 } from '../scripts/utils';
 
 const ETH_AMOUNT = '0.1';
@@ -98,11 +101,7 @@ const FUEL_GAS_PRICE = 1;
   console.log('Building message proof...');
   const messageOutReceipt = <TransactionResultMessageOutReceipt>fWithdrawTxResult.receipts[0];
   const withdrawMessageProof = await env.fuel.provider.getMessageProof(fWithdrawTx.id, messageOutReceipt.messageID);
-  console.log("Waiting to be sure timelock is over...");
-  await delay(20_000); // even though the timelock is 0, we still wait a bit in case the fuel clock is running fast
-
-  // construct relay message proof data
-  const messageOutput: MessageOutput = {
+  const messageOut: MessageOut = {
     sender: withdrawMessageProof.sender.toHexString(),
     recipient: withdrawMessageProof.recipient.toHexString(),
     amount: withdrawMessageProof.amount.toHex(),
@@ -124,13 +123,28 @@ const FUEL_GAS_PRICE = 1;
     proof: withdrawMessageProof.proofSet.slice(0, -1),
   };
 
+  // wait for block header finalization
+  const committerRole = keccak256(toUtf8Bytes('COMMITTER_ROLE'));
+  const deployerAddress = await env.eth.deployer.getAddress();
+  const isDeployerComitter = await env.eth.fuelChainConsensus.hasRole(committerRole, deployerAddress);
+  let rootBlock: BlockHeaderLite = null;
+  let blockInHistoryProof: any = null;
+  if (isDeployerComitter) {
+    // commit and finalize a mock block to prove the message from
+    [rootBlock, blockInHistoryProof] = await mockBlockFinalization(env, withdrawMessageProof);
+  } else {
+    // will need to wait for more blocks to be built and then a block to be comitted to the consensus contract
+    throw new Error('Cannot make block commits');
+  }
+
   // relay message on Ethereum
   console.log('Relaying message on Ethereum...');
-  const eRelayMessageTx = await fuelMessagePortal.relayMessageFromFuelBlock(
-    messageOutput,
+  const eRelayMessageTx = await fuelMessagePortal.relayMessage(
+    messageOut,
+    rootBlock,
     blockHeader,
-    messageInBlockProof,
-    withdrawMessageProof.signature
+    blockInHistoryProof,
+    messageInBlockProof
   );
   const eRelayMessageTxResult = await eRelayMessageTx.wait();
   if (eRelayMessageTxResult.status !== 1) {
@@ -153,31 +167,3 @@ const FUEL_GAS_PRICE = 1;
   console.log('END');
   console.log('');
 })();
-
-// The BlockHeader structure.
-class BlockHeader {
-  constructor(
-    // Consensus
-    public prevRoot: string,
-    public height: string,
-    public timestamp: string,
-
-    // Application
-    public daHeight: string,
-    public txCount: string,
-    public outputMessagesCount: string,
-    public txRoot: string,
-    public outputMessagesRoot: string
-  ) {}
-}
-
-// The MessageOutput structure.
-class MessageOutput {
-  constructor(
-    public sender: string,
-    public recipient: string,
-    public amount: string,
-    public nonce: string,
-    public data: string
-  ) {}
-}
