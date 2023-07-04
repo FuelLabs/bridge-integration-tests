@@ -113,6 +113,11 @@ const FUEL_GAS_PRICE = 1;
     fWithdrawTx.id, messageOutReceipt.messageId, result2.blockId
   );
 
+  console.log(fWithdrawTx.id, messageOutReceipt.messageId, result2.blockId);
+
+  console.log('Message proof:');
+  console.log(JSON.stringify(withdrawMessageProof, null, 2));
+
   // construct data objects for relaying message on L1
   const messageOut: MessageOut = {
     sender: withdrawMessageProof.sender.toHexString(),
@@ -138,26 +143,40 @@ const FUEL_GAS_PRICE = 1;
     proof: messageProof.proofSet,
   };
 
-  // create a simple merkle root and proof for the block
-  // TODO: use the proof returned from Fuel instead
-  const targetBlock = generateBlockHeaderLite(blockHeader);
-  const targetBlockId = computeBlockHash(targetBlock);
-  const prevRootNodes = constructTree([targetBlockId]);
-  const prevRoot = calcRoot([targetBlockId]);
-  
   // construct data objects for relaying message on L1 (cont)
   const rootHeader = withdrawMessageProof.commitBlockHeader;
   const rootBlockHeader: BlockHeaderLite = {
-    prevRoot: prevRoot, // TODO: use 'rootHeader.prevRoot' instead
-    height: "1", // TODO: use 'rootHeader.height.toHex()' instead
+    prevRoot: rootHeader.prevRoot,
+    height: rootHeader.height.toHex(),
     timestamp: new BN(rootHeader.time).toHex(),
     applicationHash: rootHeader.applicationHash,
   };
-  // const blockProof = withdrawMessageProof.blockProof;
+  const blockProof = withdrawMessageProof.blockProof;
   const blockInHistoryProof = {
-    key: 0, // TODO: use 'blockProof.proofIndex.toNumber()' instead
-    proof: getProof(prevRootNodes, 0), // TODO: use 'blockProof.proofSet' instead
+    key: blockProof.proofIndex.toNumber(),
+    proof: blockProof.proofSet
   };
+
+  // create a simple merkle root and proof for the block
+  // TODO: use the proof returned from Fuel instead
+  // const targetBlock = generateBlockHeaderLite(blockHeader);
+  // const targetBlockId = computeBlockHash(targetBlock);
+  // const prevRootNodes = constructTree([targetBlockId]);
+  // const prevRoot = calcRoot([targetBlockId]);
+  
+  // // construct data objects for relaying message on L1 (cont)
+  // const rootHeader = withdrawMessageProof.commitBlockHeader;
+  // const rootBlockHeader: BlockHeaderLite = {
+  //   prevRoot: prevRoot, // TODO: use 'rootHeader.prevRoot' instead
+  //   height: "1", // TODO: use 'rootHeader.height.toHex()' instead
+  //   timestamp: new BN(rootHeader.time).toHex(),
+  //   applicationHash: rootHeader.applicationHash,
+  // };
+  // // const blockProof = withdrawMessageProof.blockProof;
+  // const blockInHistoryProof = {
+  //   key: 0, // TODO: use 'blockProof.proofIndex.toNumber()' instead
+  //   proof: getProof(prevRootNodes, 0), // TODO: use 'blockProof.proofSet' instead
+  // };
 
   // wait for block header finalization
   const committerRole = keccak256(toUtf8Bytes('COMMITTER_ROLE'));
