@@ -1,7 +1,6 @@
-import { formatEther, keccak256, parseEther, toUtf8Bytes } from 'ethers/lib/utils';
+import { arrayify, formatEther, keccak256, parseEther, toUtf8Bytes } from 'ethers/lib/utils';
 import { Address, BN, TransactionResultMessageOutReceipt, ZeroBytes32 } from 'fuels';
 import { TestEnvironment, setupEnvironment } from '../scripts/setup';
-import { constructTree, calcRoot, getProof } from '@fuel-ts/merkle';
 import {
   BlockHeader,
   BlockHeaderLite,
@@ -10,9 +9,8 @@ import {
   fuels_parseEther,
   fuels_waitForMessage,
   mockBlockFinalization,
-  generateBlockHeaderLite,
-  computeBlockHash,
 } from '../scripts/utils';
+import { getMessageProof } from './getMessageProof';
 
 const ETH_AMOUNT = '0.1';
 const FUEL_MESSAGE_TIMEOUT_MS = 1_000_000;
@@ -109,74 +107,61 @@ const FUEL_GAS_PRICE = 1;
   const resp = await fuelAccount.transfer(fuelAccount.address, 1);
   const result2 = await resp.waitForResult();
 
-  const withdrawMessageProof = await env.fuel.provider.getMessageProof(
+  // TODO: use the getMessageProof function from fuel-ts instead once it's updated with
+  // the new message proof data
+  // const withdrawMessageProof = await env.fuel.provider.getMessageProof(
+  //   fWithdrawTx.id, messageOutReceipt.messageId, result2.blockId
+  // );
+  const withdrawMessageProof = await getMessageProof(
     fWithdrawTx.id, messageOutReceipt.messageId, result2.blockId
   );
 
-  console.log(fWithdrawTx.id, messageOutReceipt.messageId, result2.blockId);
-
-  console.log('Message proof:');
-  console.log(JSON.stringify(withdrawMessageProof, null, 2));
-
   // construct data objects for relaying message on L1
   const messageOut: MessageOut = {
-    sender: withdrawMessageProof.sender.toHexString(),
-    recipient: withdrawMessageProof.recipient.toHexString(),
-    amount: withdrawMessageProof.amount.toHex(),
+    sender: withdrawMessageProof.sender,
+    recipient: withdrawMessageProof.recipient,
+    amount: withdrawMessageProof.amount,
     nonce: withdrawMessageProof.nonce,
     data: withdrawMessageProof.data,
   };
   const header = withdrawMessageProof.messageBlockHeader;
   const blockHeader: BlockHeader = {
     prevRoot: header.prevRoot,
-    height: header.height.toHex(),
-    timestamp: new BN(header.time).toHex(),
-    daHeight: header.daHeight.toHex(),
-    txCount: header.transactionsCount.toHex(),
-    outputMessagesCount: header.transactionsCount.toHex(),
+    height: header.height,
+    timestamp: header.time,
+    daHeight: header.daHeight,
+    txCount: header.transactionsCount,
     txRoot: header.transactionsRoot,
-    outputMessagesRoot: header.transactionsRoot,
+    outputMessagesRoot: header.messageReceiptRoot,
+    outputMessagesCount: header.messageReceiptCount,
   };
   const messageProof = withdrawMessageProof.messageProof;
+  const messageProofSet = messageProof.proofSet;
+  // TODO: update this when fuel-core remove the first proof from the set
+  messageProofSet.shift();
+  // Create the message proof object
   const messageInBlockProof = {
-    key: messageProof.proofIndex.toNumber(),
-    proof: messageProof.proofSet,
+    key: messageProof.proofIndex,
+    proof: messageProofSet.map((p) => arrayify(p)),
   };
 
   // construct data objects for relaying message on L1 (cont)
   const rootHeader = withdrawMessageProof.commitBlockHeader;
   const rootBlockHeader: BlockHeaderLite = {
     prevRoot: rootHeader.prevRoot,
-    height: rootHeader.height.toHex(),
-    timestamp: new BN(rootHeader.time).toHex(),
+    height: rootHeader.height,
+    timestamp: rootHeader.time,
     applicationHash: rootHeader.applicationHash,
   };
   const blockProof = withdrawMessageProof.blockProof;
+  let proofSet = blockProof.proofSet;
+  // TODO: update this when fuel-core remove the first proof from the set
+  proofSet.shift();
+  // Create the block proof object
   const blockInHistoryProof = {
-    key: blockProof.proofIndex.toNumber(),
-    proof: blockProof.proofSet
+    key: blockProof.proofIndex,
+    proof: proofSet.map((p) => arrayify(p)),
   };
-
-  // create a simple merkle root and proof for the block
-  // TODO: use the proof returned from Fuel instead
-  // const targetBlock = generateBlockHeaderLite(blockHeader);
-  // const targetBlockId = computeBlockHash(targetBlock);
-  // const prevRootNodes = constructTree([targetBlockId]);
-  // const prevRoot = calcRoot([targetBlockId]);
-  
-  // // construct data objects for relaying message on L1 (cont)
-  // const rootHeader = withdrawMessageProof.commitBlockHeader;
-  // const rootBlockHeader: BlockHeaderLite = {
-  //   prevRoot: prevRoot, // TODO: use 'rootHeader.prevRoot' instead
-  //   height: "1", // TODO: use 'rootHeader.height.toHex()' instead
-  //   timestamp: new BN(rootHeader.time).toHex(),
-  //   applicationHash: rootHeader.applicationHash,
-  // };
-  // // const blockProof = withdrawMessageProof.blockProof;
-  // const blockInHistoryProof = {
-  //   key: 0, // TODO: use 'blockProof.proofIndex.toNumber()' instead
-  //   proof: getProof(prevRootNodes, 0), // TODO: use 'blockProof.proofSet' instead
-  // };
 
   // wait for block header finalization
   const committerRole = keccak256(toUtf8Bytes('COMMITTER_ROLE'));
@@ -192,11 +177,6 @@ const FUEL_GAS_PRICE = 1;
 
   // relay message on Ethereum
   console.log('Relaying message on Ethereum...');
-  console.log(messageOut,
-    rootBlockHeader,
-    blockHeader,
-    blockInHistoryProof,
-    messageInBlockProof);
   const eRelayMessageTx = await fuelMessagePortal.relayMessage(
     messageOut,
     rootBlockHeader,
