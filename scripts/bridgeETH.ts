@@ -1,6 +1,7 @@
 import { formatEther, keccak256, parseEther, toUtf8Bytes } from 'ethers/lib/utils';
 import { Address, BN, TransactionResultMessageOutReceipt, ZeroBytes32 } from 'fuels';
 import { TestEnvironment, setupEnvironment } from '../scripts/setup';
+import { constructTree, calcRoot, getProof } from '@fuel-ts/merkle';
 import {
   BlockHeader,
   BlockHeaderLite,
@@ -9,6 +10,8 @@ import {
   fuels_parseEther,
   fuels_waitForMessage,
   mockBlockFinalization,
+  generateBlockHeaderLite,
+  computeBlockHash,
 } from '../scripts/utils';
 
 const ETH_AMOUNT = '0.1';
@@ -100,7 +103,17 @@ const FUEL_GAS_PRICE = 1;
   // get message proof for relaying on Ethereum
   console.log('Building message proof...');
   const messageOutReceipt = <TransactionResultMessageOutReceipt>fWithdrawTxResult.receipts[0];
-  const withdrawMessageProof = await env.fuel.provider.getMessageProof(fWithdrawTx.id, messageOutReceipt.messageID);
+
+  // Build a new block to commit the message
+  // TODO: we need to wait for the next block in another way when deploying to sepolia
+  const resp = await fuelAccount.transfer(fuelAccount.address, 1);
+  const result2 = await resp.waitForResult();
+
+  const withdrawMessageProof = await env.fuel.provider.getMessageProof(
+    fWithdrawTx.id, messageOutReceipt.messageId, result2.blockId
+  );
+
+  // construct data objects for relaying message on L1
   const messageOut: MessageOut = {
     sender: withdrawMessageProof.sender.toHexString(),
     recipient: withdrawMessageProof.recipient.toHexString(),
@@ -108,30 +121,51 @@ const FUEL_GAS_PRICE = 1;
     nonce: withdrawMessageProof.nonce,
     data: withdrawMessageProof.data,
   };
+  const header = withdrawMessageProof.messageBlockHeader;
   const blockHeader: BlockHeader = {
-    prevRoot: withdrawMessageProof.header.prevRoot,
-    height: withdrawMessageProof.header.height.toHex(),
-    timestamp: new BN(withdrawMessageProof.header.time).toHex(),
-    daHeight: withdrawMessageProof.header.daHeight.toHex(),
-    txCount: withdrawMessageProof.header.transactionsCount.toHex(),
-    outputMessagesCount: withdrawMessageProof.header.outputMessagesCount.toHex(),
-    txRoot: withdrawMessageProof.header.transactionsRoot,
-    outputMessagesRoot: withdrawMessageProof.header.outputMessagesRoot,
+    prevRoot: header.prevRoot,
+    height: header.height.toHex(),
+    timestamp: new BN(header.time).toHex(),
+    daHeight: header.daHeight.toHex(),
+    txCount: header.transactionsCount.toHex(),
+    outputMessagesCount: header.transactionsCount.toHex(),
+    txRoot: header.transactionsRoot,
+    outputMessagesRoot: header.transactionsRoot,
   };
+  const messageProof = withdrawMessageProof.messageProof;
   const messageInBlockProof = {
-    key: withdrawMessageProof.proofIndex.toNumber(),
-    proof: withdrawMessageProof.proofSet.slice(0, -1),
+    key: messageProof.proofIndex.toNumber(),
+    proof: messageProof.proofSet,
+  };
+
+  // create a simple merkle root and proof for the block
+  // TODO: use the proof returned from Fuel instead
+  const targetBlock = generateBlockHeaderLite(blockHeader);
+  const targetBlockId = computeBlockHash(targetBlock);
+  const prevRootNodes = constructTree([targetBlockId]);
+  const prevRoot = calcRoot([targetBlockId]);
+  
+  // construct data objects for relaying message on L1 (cont)
+  const rootHeader = withdrawMessageProof.commitBlockHeader;
+  const rootBlockHeader: BlockHeaderLite = {
+    prevRoot: prevRoot, // TODO: use 'rootHeader.prevRoot' instead
+    height: "1", // TODO: use 'rootHeader.height.toHex()' instead
+    timestamp: new BN(rootHeader.time).toHex(),
+    applicationHash: rootHeader.applicationHash,
+  };
+  // const blockProof = withdrawMessageProof.blockProof;
+  const blockInHistoryProof = {
+    key: 0, // TODO: use 'blockProof.proofIndex.toNumber()' instead
+    proof: getProof(prevRootNodes, 0), // TODO: use 'blockProof.proofSet' instead
   };
 
   // wait for block header finalization
   const committerRole = keccak256(toUtf8Bytes('COMMITTER_ROLE'));
   const deployerAddress = await env.eth.deployer.getAddress();
-  const isDeployerComitter = await env.eth.fuelChainConsensus.hasRole(committerRole, deployerAddress);
-  let rootBlock: BlockHeaderLite = null;
-  let blockInHistoryProof: any = null;
+  const isDeployerComitter = await env.eth.fuelChainState.hasRole(committerRole, deployerAddress);
   if (isDeployerComitter) {
     // commit and finalize a mock block to prove the message from
-    [rootBlock, blockInHistoryProof] = await mockBlockFinalization(env, withdrawMessageProof);
+    await mockBlockFinalization(env, rootBlockHeader);
   } else {
     // will need to wait for more blocks to be built and then a block to be comitted to the consensus contract
     throw new Error('Cannot make block commits');
@@ -139,9 +173,14 @@ const FUEL_GAS_PRICE = 1;
 
   // relay message on Ethereum
   console.log('Relaying message on Ethereum...');
+  console.log(messageOut,
+    rootBlockHeader,
+    blockHeader,
+    blockInHistoryProof,
+    messageInBlockProof);
   const eRelayMessageTx = await fuelMessagePortal.relayMessage(
     messageOut,
-    rootBlock,
+    rootBlockHeader,
     blockHeader,
     blockInHistoryProof,
     messageInBlockProof

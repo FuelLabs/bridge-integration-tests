@@ -5,8 +5,8 @@ import { ethers, Signer as EthSigner } from 'ethers';
 import { Provider as EthProvider } from '@ethersproject/providers';
 import { Wallet, Provider as FuelProvider, WalletUnlocked as FuelWallet } from 'fuels';
 import { fuels_parseEther, fuels_formatEther } from '../scripts/utils';
-import { FuelChainConsensus } from '../fuel-v2-contracts/FuelChainConsensus.d';
-import { FuelChainConsensus__factory } from '../fuel-v2-contracts/factories/FuelChainConsensus__factory';
+import { FuelChainState } from '../fuel-v2-contracts/FuelChainState';
+import { FuelChainState__factory } from '../fuel-v2-contracts/factories/FuelChainState__factory';
 import { FuelMessagePortal } from '../fuel-v2-contracts/FuelMessagePortal.d';
 import { FuelMessagePortal__factory } from '../fuel-v2-contracts/factories/FuelMessagePortal__factory';
 import { FuelERC20Gateway } from '../fuel-v2-contracts/FuelERC20Gateway.d';
@@ -43,7 +43,7 @@ export interface TestEnvironment {
   eth: {
     provider: EthProvider;
     jsonRPC: string;
-    fuelChainConsensus: FuelChainConsensus;
+    fuelChainState: FuelChainState;
     fuelMessagePortal: FuelMessagePortal;
     fuelERC20Gateway: FuelERC20Gateway;
     deployer: EthSigner;
@@ -161,7 +161,7 @@ export async function setupEnvironment(opts: SetupOptions): Promise<TestEnvironm
   }
 
   // Connect existing contracts
-  let eth_fuelChainConsensus: FuelChainConsensus = FuelChainConsensus__factory.connect(
+  let eth_fuelChainConsensus: FuelChainState = FuelChainState__factory.connect(
     eth_fuelChainConsensusAddress,
     eth_deployer
   );
@@ -179,7 +179,7 @@ export async function setupEnvironment(opts: SetupOptions): Promise<TestEnvironm
     eth: {
       provider: eth_provider,
       jsonRPC: http_ethereum_client,
-      fuelChainConsensus: eth_fuelChainConsensus,
+      fuelChainState: eth_fuelChainConsensus,
       fuelMessagePortal: eth_fuelMessagePortal,
       fuelERC20Gateway: eth_fuelERC20Gateway,
       deployer: eth_deployer,

@@ -214,7 +214,7 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
       forward: { amount: fuels_parseToken(TOKEN_AMOUNT, 9), assetId: fuelTestTokenId },
     })
     .txParams(fuelTxParams);
-  scope.transactionRequest.addMessageOutputs(1);
+  // scope.transactionRequest.addMessageOutputs(1);
   const fWithdrawTx = await scope.call();
   const fWithdrawTxResult = fWithdrawTx.transactionResult;
   if (fWithdrawTxResult.status.type !== 'success') {
@@ -227,7 +227,7 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
   const messageOutReceipt = <TransactionResultMessageOutReceipt>fWithdrawTxResult.receipts[1];
   const withdrawMessageProof = await env.fuel.provider.getMessageProof(
     fWithdrawTx.transactionId,
-    messageOutReceipt.messageID
+    messageOutReceipt.messageId
   );
   const messageOut: MessageOut = {
     sender: withdrawMessageProof.sender.toHexString(),
@@ -236,25 +236,27 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
     nonce: withdrawMessageProof.nonce,
     data: withdrawMessageProof.data,
   };
+  const header = withdrawMessageProof.commitBlockHeader;
   const blockHeader: BlockHeader = {
-    prevRoot: withdrawMessageProof.header.prevRoot,
-    height: withdrawMessageProof.header.height.toHex(),
-    timestamp: new BN(withdrawMessageProof.header.time).toHex(),
-    daHeight: withdrawMessageProof.header.daHeight.toHex(),
-    txCount: withdrawMessageProof.header.transactionsCount.toHex(),
-    outputMessagesCount: withdrawMessageProof.header.outputMessagesCount.toHex(),
-    txRoot: withdrawMessageProof.header.transactionsRoot,
-    outputMessagesRoot: withdrawMessageProof.header.outputMessagesRoot,
+    prevRoot: header.prevRoot,
+    height: header.height.toHex(),
+    timestamp: new BN(header.time).toHex(),
+    daHeight: header.daHeight.toHex(),
+    txCount: header.transactionsCount.toHex(),
+    outputMessagesCount: header.transactionsCount.toHex(),
+    txRoot: header.transactionsRoot,
+    outputMessagesRoot: header.transactionsRoot,
   };
+  const blockProof = withdrawMessageProof.blockProof;
   const messageInBlockProof = {
-    key: withdrawMessageProof.proofIndex.toNumber(),
-    proof: withdrawMessageProof.proofSet.slice(0, -1),
+    key: blockProof.proofIndex.toNumber(),
+    proof: blockProof.proofSet.slice(0, -1),
   };
 
   // wait for block header finalization
   const committerRole = keccak256(toUtf8Bytes('COMMITTER_ROLE'));
   const deployerAddress = await env.eth.deployer.getAddress();
-  const isDeployerComitter = await env.eth.fuelChainConsensus.hasRole(committerRole, deployerAddress);
+  const isDeployerComitter = await env.eth.fuelChainState.hasRole(committerRole, deployerAddress);
   let rootBlock: BlockHeaderLite = null;
   let blockInHistoryProof: any = null;
   if (isDeployerComitter) {

@@ -136,9 +136,13 @@ describe('Transferring ETH', async function () {
       const result = await tx.waitForResult();
       expect(result.status.type).to.equal('success');
 
+      // Build a new block to commit the message
+      const resp = await fuelETHSender.transfer(fuelETHSender.address, 1);
+      const result2 = await resp.waitForResult();
+
       // get message proof
       const messageOutReceipt = <TransactionResultMessageOutReceipt>result.receipts[0];
-      withdrawMessageProof = await env.fuel.provider.getMessageProof(tx.id, messageOutReceipt.messageID);
+      withdrawMessageProof = await env.fuel.provider.getMessageProof(tx.id, messageOutReceipt.messageId, result2.blockId);
 
       // check that the sender balance has decreased by the expected amount
       let newSenderBalance = await fuelETHSender.getBalance(ETH_ASSET_ID);
@@ -154,28 +158,48 @@ describe('Transferring ETH', async function () {
         nonce: withdrawMessageProof.nonce,
         data: withdrawMessageProof.data,
       };
-      const blockHeader: BlockHeader = {
-        prevRoot: withdrawMessageProof.header.prevRoot,
-        height: withdrawMessageProof.header.height.toHex(),
-        timestamp: new BN(withdrawMessageProof.header.time).toHex(),
-        daHeight: withdrawMessageProof.header.daHeight.toHex(),
-        txCount: withdrawMessageProof.header.transactionsCount.toHex(),
-        outputMessagesCount: withdrawMessageProof.header.outputMessagesCount.toHex(),
-        txRoot: withdrawMessageProof.header.transactionsRoot,
-        outputMessagesRoot: withdrawMessageProof.header.outputMessagesRoot,
+      const messageBlockHeader = withdrawMessageProof.messageBlockHeader;
+      const blockHeader = {
+        prevRoot: messageBlockHeader.prevRoot,
+        height: messageBlockHeader.height.toString(),
+        timestamp: new BN(messageBlockHeader.time).toHex(),
+        daHeight: messageBlockHeader.daHeight.toNumber().toString(),
+        txCount: messageBlockHeader.transactionsCount.toNumber().toString(),
+        outputMessagesCount: messageBlockHeader.transactionsCount.toNumber().toString(),
+        txRoot: messageBlockHeader.transactionsRoot,
+        outputMessagesRoot: messageBlockHeader.transactionsRoot,
       };
-      const messageInBlockProof = {
-        key: withdrawMessageProof.proofIndex.toNumber(),
-        proof: withdrawMessageProof.proofSet.slice(0, -1),
+      const messageProof = withdrawMessageProof.messageProof;
+      const msgInBlock = {
+        key: messageProof.proofIndex.toNumber(),
+        proof: messageProof.proofSet,
       };
+      const blockProof = withdrawMessageProof.blockProof;
+      const blockInRoot = {
+        key: blockProof.proofIndex.toNumber(),
+        proof: blockProof.proofSet,
+      };
+      const rootBlock = {
+        prevRoot: withdrawMessageProof.commitBlockHeader.prevRoot,
+        height: withdrawMessageProof.commitBlockHeader.height.toString(),
+        timestamp: new BN(withdrawMessageProof.commitBlockHeader.time).toHex(),
+        applicationHash: withdrawMessageProof.commitBlockHeader.applicationHash,
+      };
+
+      console.log(messageOutput,
+        rootBlock,
+        blockHeader,
+        msgInBlock,
+        blockInRoot);
 
       // relay message
       await expect(
-        env.eth.fuelMessagePortal.relayMessageFromFuelBlock(
+        env.eth.fuelMessagePortal.relayMessage(
           messageOutput,
+          rootBlock,
           blockHeader,
-          messageInBlockProof,
-          withdrawMessageProof.signature
+          msgInBlock,
+          blockInRoot 
         )
       ).to.not.be.reverted;
     });

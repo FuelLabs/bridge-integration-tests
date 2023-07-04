@@ -29,6 +29,7 @@ import * as http from 'http';
 import * as https from 'https';
 import * as url from 'url';
 
+
 // Constants
 const ETHEREUM_ETH_DECIMALS: number = 18;
 const FUEL_ETH_DECIMALS: number = 9;
@@ -86,7 +87,7 @@ export async function fuels_waitForMessage(
   while (new Date().getTime() - startTime < timeout) {
     let messages = await provider.getMessages(recipient, { first: 1000 });
     for (let message of messages) {
-      if (message.nonce.eq(nonce)) {
+      if (message.nonce.toString() === nonce.toHex(32).toString()) {
         return message;
       }
     }
@@ -117,47 +118,21 @@ export async function fuels_relayCommonMessage(
 }
 
 // Makes sure the latest Fuel block is comitted to the consensus contract and is considered finalized
-// TODO: this will need to be updated to actually use the proofs generated from the fuel client with the regular block production
 export async function mockBlockFinalization(
   env: TestEnvironment,
-  messageProof: MessageProof
-): Promise<[BlockHeaderLite, any]> {
+  commitBlock: BlockHeaderLite
+) {
   const BLOCKS_PER_COMMIT_INTERVAL = 10800;
   const TIME_TO_FINALIZE = 10800;
-  const EMPTY = '0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
-  // create chain related
-  const fuelChainConsensus = env.eth.fuelChainConsensus.connect(env.eth.deployer);
+  // connect to FuelChainState contract as the permissioned block comitter
+  const fuelChainState = env.eth.fuelChainState.connect(env.eth.deployer);
 
-  // create a simple merkle root and proof for the block
-  const targetBlock: BlockHeaderLite = {
-    prevRoot: messageProof.header.prevRoot,
-    height: messageProof.header.height.toHex(),
-    timestamp: new BN(messageProof.header.time).toHex(),
-    applicationHash: messageProof.header.applicationHash,
-  };
-  const targetBlockId = computeBlockHash(targetBlock);
-  const prevRootNodes = constructTree([targetBlockId]);
-  const prevRoot = calcRoot([targetBlockId]);
-  const blockInHistoryProof = {
-    key: 0,
-    proof: getProof(prevRootNodes, 0),
-  };
-
-  // build a simple root block
-  let blockHeight = messageProof.header.height.add(1);
-  const rootBlock = {
-    prevRoot: prevRoot,
-    height: new BN(1).toHex(),
-    timestamp: new BN(messageProof.header.time).toHex(),
-    applicationHash: EMPTY,
-  };
-
-  // commit the made up root block
-  const blockHash = computeBlockHash(rootBlock);
-  const commitBlockTx = await fuelChainConsensus.commit(
-    blockHash,
-    Math.floor(blockHeight.toNumber() / BLOCKS_PER_COMMIT_INTERVAL)
+  // commit the given block
+  console.log('blockHash:', computeBlockHash(commitBlock));
+  const commitBlockTx = await fuelChainState.commit(
+    computeBlockHash(commitBlock),
+    Math.floor(bn(commitBlock.height).toNumber() / BLOCKS_PER_COMMIT_INTERVAL)
   );
   const commitBlockTxResult = await commitBlockTx.wait();
   if (commitBlockTxResult.status !== 1) {
@@ -166,11 +141,10 @@ export async function mockBlockFinalization(
   }
 
   // move the clock forward to ensure finalization
+  // TODO: for public test nets this call should fail, when that happens do a simple delay instead [await delay(5*60*1000);]
   await providerSend(env.eth.jsonRPC, 'evm_increaseTime', [TIME_TO_FINALIZE]);
   //env.eth.provider.send('evm_increaseTime', [TIME_TO_FINALIZE]);
   //curl -H "Content-Type: application/json" -X POST --data '{"jsonrpc":"2.0","method":"web3_clientVersion","params":[],"id":67}' 127.0.0.1:8545
-
-  return [rootBlock, blockInHistoryProof];
 }
 
 // Makes a low level JSON RPC method call
@@ -228,6 +202,37 @@ export function computeBlockHash(blockHeader: BlockHeaderLite): string {
     [blockHeader.prevRoot, blockHeader.height, blockHeader.timestamp, blockHeader.applicationHash]
   );
   return sha256(serialized);
+}
+
+// Generates the lite version of the block header.
+export function generateBlockHeaderLite(blockHeader: BlockHeader): BlockHeaderLite {
+  const header: BlockHeaderLite = {
+      prevRoot: blockHeader.prevRoot,
+      height: blockHeader.height,
+      timestamp: blockHeader.timestamp,
+      applicationHash: computeApplicationHeaderHash(blockHeader),
+  };
+
+  return header;
+}
+
+// Serialize a block application header.
+export function serializeApplicationHeader(blockHeader: BlockHeader): string {
+    return solidityPack(
+        ['uint64', 'uint64', 'uint64', 'bytes32', 'bytes32'],
+        [
+            blockHeader.daHeight,
+            blockHeader.txCount,
+            blockHeader.outputMessagesCount,
+            blockHeader.txRoot,
+            blockHeader.outputMessagesRoot,
+        ]
+    );
+}
+
+// Produce the block application header hash.
+export function computeApplicationHeaderHash(blockHeader: BlockHeader): string {
+    return ethers.utils.sha256(serializeApplicationHeader(blockHeader));
 }
 
 // Simple async delay function
@@ -294,7 +299,7 @@ const COMMON_RELAYABLE_MESSAGES: CommonMessageDetails[] = [
 
       // find a UTXO that can cover gas costs
       let coins = (await relayer.getCoins()).filter(
-        (coin) => coin.assetId == ZeroBytes32 && coin.status == 'UNSPENT' && coin.amount.gt(minGas)
+        (coin) => coin.assetId == ZeroBytes32 && coin.amount.gt(minGas)
       );
       if (coins.length == 0) throw new Error('wallet has no single UTXO that can cover gas costs');
       let gas_coin = coins[0];
@@ -312,7 +317,7 @@ const COMMON_RELAYABLE_MESSAGES: CommonMessageDetails[] = [
         sender: message.sender.toHexString(),
         recipient: message.recipient.toHexString(),
         witnessIndex: 0,
-        data: message.data,
+        // data: message.data,
         nonce: message.nonce,
         predicate: predicate,
       });

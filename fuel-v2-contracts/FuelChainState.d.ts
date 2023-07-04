@@ -20,7 +20,7 @@ import { Listener, Provider } from "@ethersproject/providers";
 import { FunctionFragment, EventFragment, Result } from "@ethersproject/abi";
 import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 
-interface FuelChainConsensusInterface extends ethers.utils.Interface {
+interface FuelChainStateInterface extends ethers.utils.Interface {
   functions: {
     "BLOCKS_PER_COMMIT_INTERVAL()": FunctionFragment;
     "COMMITTER_ROLE()": FunctionFragment;
@@ -207,7 +207,7 @@ interface FuelChainConsensusInterface extends ethers.utils.Interface {
   getEvent(nameOrSignatureOrTopic: "Upgraded"): EventFragment;
 }
 
-export class FuelChainConsensus extends Contract {
+export class FuelChainState extends Contract {
   connect(signerOrProvider: Signer | Provider | string): this;
   attach(addressOrName: string): this;
   deployed(): Promise<this>;
@@ -248,7 +248,7 @@ export class FuelChainConsensus extends Contract {
     toBlock?: string | number | undefined
   ): Promise<Array<TypedEvent<EventArgsArray & EventArgsObject>>>;
 
-  interface: FuelChainConsensusInterface;
+  interface: FuelChainStateInterface;
 
   functions: {
     BLOCKS_PER_COMMIT_INTERVAL(overrides?: CallOverrides): Promise<[BigNumber]>;
