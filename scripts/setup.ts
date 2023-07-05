@@ -4,7 +4,7 @@ import axios from 'axios';
 import { ethers, Signer as EthSigner } from 'ethers';
 import { Provider as EthProvider } from '@ethersproject/providers';
 import { Wallet, Provider as FuelProvider, WalletUnlocked as FuelWallet } from 'fuels';
-import { fuels_parseEther, fuels_formatEther } from '../scripts/utils';
+import { fuels_parseEther, fuels_formatEther } from './utils/parsers';
 import { FuelChainState } from '../fuel-v2-contracts/FuelChainState';
 import { FuelChainState__factory } from '../fuel-v2-contracts/factories/FuelChainState__factory';
 import { FuelMessagePortal } from '../fuel-v2-contracts/FuelMessagePortal.d';

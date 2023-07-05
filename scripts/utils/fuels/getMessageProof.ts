@@ -1,3 +1,5 @@
+import { MessageProof } from "../../types";
+
 const createQuery = (transactionId: string, messageId: string, commitBlockId: string) => `
 fragment messageProofFragment on MessageProof {
     messageProof {
@@ -49,63 +51,6 @@ query {
     }
 }`;
 
-export interface Root {
-    data: Data
-  }
-  
-  export interface Data {
-    messageProof: MessageProof
-  }
-  
-  export interface MessageProof {
-    messageProof: MessageProof2
-    blockProof: BlockProof
-    messageBlockHeader: MessageBlockHeader
-    commitBlockHeader: CommitBlockHeader
-    sender: string
-    recipient: string
-    nonce: string
-    amount: string
-    data: string
-  }
-  
-  export interface MessageProof2 {
-    proofSet: string[]
-    proofIndex: string
-  }
-  
-  export interface BlockProof {
-    proofSet: string[]
-    proofIndex: string
-  }
-  
-  export interface MessageBlockHeader {
-    id: string
-    daHeight: string
-    transactionsCount: string
-    transactionsRoot: string
-    height: string
-    prevRoot: string
-    time: string
-    applicationHash: string
-    messageReceiptRoot: string
-    messageReceiptCount: string
-  }
-  
-  export interface CommitBlockHeader {
-    id: string
-    daHeight: string
-    transactionsCount: string
-    transactionsRoot: string
-    height: string
-    prevRoot: string
-    time: string
-    applicationHash: string
-    messageReceiptRoot: string
-    messageReceiptCount: string
-  }
-  
-  
 export async function getMessageProof(transactionId: string, messageId: string, blockId: string) {
     const result = await fetch('http://localhost:4000/graphql', {
       method: 'POST',
