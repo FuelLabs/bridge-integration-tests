@@ -1,13 +1,23 @@
 import { formatEther } from 'ethers/lib/utils';
-import { fuels_formatEther } from './parsers';
+import { ethers_formatToken, fuels_formatEther, fuels_formatToken } from './parsers';
 import { Signer } from 'ethers';
 import { WalletUnlocked } from 'fuels';
+import { Token } from '../../fuel-v2-contracts/Token';
 
-export async function logBalances(ethereumAccount: Signer, fuelAccount: WalletUnlocked) {
+export async function logETHBalances(ethereumAccount: Signer, fuelAccount: WalletUnlocked) {
   const etherAccountAddress = await ethereumAccount.getAddress();
   const fuelAccountAddress = await fuelAccount.address.toHexString();
   console.log('Account balances:');
   console.log(`  Ethereum - ${formatEther(await ethereumAccount.getBalance())} ETH (${etherAccountAddress})`);
   console.log(`  Fuel - ${fuels_formatEther(await fuelAccount.getBalance())} ETH (${fuelAccountAddress})`);
+  console.log('');
+}
+
+export async function logTokenBalances(ethereumContract: Token, ethereumAccount: Signer, fuelAccount: WalletUnlocked, fuelTestTokenId: string) {
+  const etherAccountAddress = await ethereumAccount.getAddress();
+  const fuelAccountAddress = await fuelAccount.address.toHexString();
+  console.log('Account balances:');
+  console.log(`  Ethereum - ${ethers_formatToken(await ethereumContract.balanceOf(etherAccountAddress))} Tokens (${etherAccountAddress})`);
+  console.log(`  Fuel - ${fuels_formatToken(await fuelAccount.getBalance(fuelTestTokenId))} Tokens (${fuelAccountAddress})`);
   console.log('');
 }

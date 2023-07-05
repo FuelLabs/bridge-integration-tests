@@ -5,7 +5,7 @@ import { createRelayMessageParams } from './utils/ethers/createRelayParams';
 import { getMessageProof } from './utils/fuels/getMessageProof';
 import { commitBlock, mockFinalization } from './utils/ethers/commitBlock';
 import { waitNextBlock } from './utils/fuels/waitNextBlock';
-import { logBalances } from './utils/logs';
+import { logETHBalances } from './utils/logs';
 import { waitForMessage } from './utils/fuels/waitForMessage';
 import { fuels_parseEther } from './utils/parsers';
 
@@ -37,7 +37,7 @@ const FUEL_GAS_PRICE = 1;
   /////////////////////////////
 
   // note balances of both accounts before transfer
-  await logBalances(ethereumAccount, fuelAccount);
+  await logETHBalances(ethereumAccount, fuelAccount);
 
   // use the FuelMessagePortal to directly send ETH to the fuel account
   console.log(`Sending ${ETH_AMOUNT} ETH from Ethereum...`);
@@ -70,7 +70,7 @@ const FUEL_GAS_PRICE = 1;
   console.log('ETH was bridged to Fuel successfully!!');
 
   // note balances of both accounts after transfer
-  await logBalances(ethereumAccount, fuelAccount);
+  await logETHBalances(ethereumAccount, fuelAccount);
 
   /////////////////////////////
   // Bridge Fuel -> Ethereum //
@@ -129,5 +129,5 @@ const FUEL_GAS_PRICE = 1;
   // the sent ETH is now spendable on Fuel
   console.log('ETH was bridged to Ethereum successfully!!\n');
   // note balances of both accounts after transfer
-  await logBalances(ethereumAccount, fuelAccount);
+  await logETHBalances(ethereumAccount, fuelAccount);
 })();
