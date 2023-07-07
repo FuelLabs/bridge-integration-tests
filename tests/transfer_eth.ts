@@ -2,16 +2,15 @@ import chai from 'chai';
 import { solidity } from 'ethereum-waffle';
 import { BigNumber, Signer } from 'ethers';
 import { parseEther } from 'ethers/lib/utils';
-import {
-  AbstractAddress,
-  Address,
-  BN,
-  MessageProof,
-  TransactionResultMessageOutReceipt,
-  WalletUnlocked as FuelWallet,
-} from 'fuels';
+import { AbstractAddress, Address, BN, WalletUnlocked as FuelWallet } from 'fuels';
 import { TestEnvironment, setupEnvironment } from '../scripts/setup';
-import { fuels_parseEther, fuels_waitForMessage } from '../scripts/utils';
+import { fuels_parseEther } from '../scripts/utils/parsers';
+import { createRelayMessageParams } from '../scripts/utils/ethers/createRelayParams';
+import { waitNextBlock } from '../scripts/utils/fuels/waitNextBlock';
+import { getMessageOutReceipt } from '../scripts/utils/fuels/getMessageOutReceipt';
+import { getMessageProof } from '../scripts/utils/fuels/getMessageProof';
+import { MessageProof } from '../scripts/types';
+import { waitForMessage } from '../scripts/utils/fuels/waitForMessage';
 
 chai.use(solidity);
 const { expect } = chai;
@@ -99,9 +98,8 @@ describe('Transferring ETH', async function () {
       this.timeout(FUEL_MESSAGE_TIMEOUT_MS);
 
       // wait for message to appear in fuel client
-      expect(
-        await fuels_waitForMessage(env.fuel.provider, fuelETHReceiver, fuelETHMessageNonce, FUEL_MESSAGE_TIMEOUT_MS)
-      ).to.not.be.null;
+      expect(await waitForMessage(env.fuel.provider, fuelETHReceiver, fuelETHMessageNonce, FUEL_MESSAGE_TIMEOUT_MS)).to
+        .not.be.null;
 
       // check that the recipient balance has increased by the expected amount
       let newReceiverBalance = await env.fuel.provider.getBalance(fuelETHReceiver, ETH_ASSET_ID);
@@ -133,16 +131,20 @@ describe('Transferring ETH', async function () {
         Address.fromString(ethereumETHReceiverAddress),
         fuels_parseEther(NUM_ETH)
       );
-      const result = await tx.waitForResult();
-      expect(result.status.type).to.equal('success');
+      const fWithdrawTxResult = await tx.waitForResult();
+      expect(fWithdrawTxResult.status.type).to.equal('success');
 
       // Build a new block to commit the message
-      const resp = await fuelETHSender.transfer(fuelETHSender.address, 1);
-      const result2 = await resp.waitForResult();
+      const nextBlockId = await waitNextBlock(env);
 
       // get message proof
-      const messageOutReceipt = <TransactionResultMessageOutReceipt>result.receipts[0];
-      withdrawMessageProof = await env.fuel.provider.getMessageProof(tx.id, messageOutReceipt.messageId, result2.blockId);
+      const messageOutReceipt = getMessageOutReceipt(fWithdrawTxResult.receipts);
+      withdrawMessageProof = await getMessageProof(
+        env.fuel.provider.url,
+        tx.id,
+        messageOutReceipt.messageId,
+        nextBlockId
+      );
 
       // check that the sender balance has decreased by the expected amount
       let newSenderBalance = await fuelETHSender.getBalance(ETH_ASSET_ID);
@@ -151,55 +153,16 @@ describe('Transferring ETH', async function () {
 
     it('Relay Message from Fuel on Ethereum', async () => {
       // construct relay message proof data
-      const messageOutput: MessageOutput = {
-        sender: withdrawMessageProof.sender.toHexString(),
-        recipient: withdrawMessageProof.recipient.toHexString(),
-        amount: withdrawMessageProof.amount.toHex(),
-        nonce: withdrawMessageProof.nonce,
-        data: withdrawMessageProof.data,
-      };
-      const messageBlockHeader = withdrawMessageProof.messageBlockHeader;
-      const blockHeader = {
-        prevRoot: messageBlockHeader.prevRoot,
-        height: messageBlockHeader.height.toString(),
-        timestamp: new BN(messageBlockHeader.time).toHex(),
-        daHeight: messageBlockHeader.daHeight.toNumber().toString(),
-        txCount: messageBlockHeader.transactionsCount.toNumber().toString(),
-        outputMessagesCount: messageBlockHeader.transactionsCount.toNumber().toString(),
-        txRoot: messageBlockHeader.transactionsRoot,
-        outputMessagesRoot: messageBlockHeader.transactionsRoot,
-      };
-      const messageProof = withdrawMessageProof.messageProof;
-      const msgInBlock = {
-        key: messageProof.proofIndex.toNumber(),
-        proof: messageProof.proofSet,
-      };
-      const blockProof = withdrawMessageProof.blockProof;
-      const blockInRoot = {
-        key: blockProof.proofIndex.toNumber(),
-        proof: blockProof.proofSet,
-      };
-      const rootBlock = {
-        prevRoot: withdrawMessageProof.commitBlockHeader.prevRoot,
-        height: withdrawMessageProof.commitBlockHeader.height.toString(),
-        timestamp: new BN(withdrawMessageProof.commitBlockHeader.time).toHex(),
-        applicationHash: withdrawMessageProof.commitBlockHeader.applicationHash,
-      };
-
-      console.log(messageOutput,
-        rootBlock,
-        blockHeader,
-        msgInBlock,
-        blockInRoot);
+      const relayMessageParams = createRelayMessageParams(withdrawMessageProof);
 
       // relay message
       await expect(
         env.eth.fuelMessagePortal.relayMessage(
-          messageOutput,
-          rootBlock,
-          blockHeader,
-          msgInBlock,
-          blockInRoot 
+          relayMessageParams.message,
+          relayMessageParams.rootBlockHeader,
+          relayMessageParams.blockHeader,
+          relayMessageParams.blockInHistoryProof,
+          relayMessageParams.messageInBlockProof
         )
       ).to.not.be.reverted;
     });

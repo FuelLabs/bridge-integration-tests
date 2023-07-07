@@ -8,6 +8,7 @@ import { waitNextBlock } from './utils/fuels/waitNextBlock';
 import { logETHBalances } from './utils/logs';
 import { waitForMessage } from './utils/fuels/waitForMessage';
 import { fuels_parseEther } from './utils/parsers';
+import { getMessageOutReceipt } from './utils/fuels/getMessageOutReceipt';
 
 const ETH_AMOUNT = '0.1';
 const FUEL_MESSAGE_TIMEOUT_MS = 1_000_000;
@@ -95,9 +96,7 @@ const FUEL_GAS_PRICE = 1;
 
   // get message proof for relaying on Ethereum
   console.log('Building message proof...');
-  const messageOutReceipt = fWithdrawTxResult.receipts.find(
-    (r) => r.type === ReceiptType.MessageOut
-  ) as TransactionResultMessageOutReceipt;
+  const messageOutReceipt = getMessageOutReceipt(fWithdrawTxResult.receipts);
 
   // TODO: use the getMessageProof function from fuel-ts instead once it's updated with
   // the new message proof data
