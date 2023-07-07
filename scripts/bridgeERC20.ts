@@ -13,11 +13,10 @@ import { getOrDeployECR20Contract, mintECR20 } from './utils/ethers/getOrDeployE
 import { getOrDeployFuelTokenContract } from './utils/fuels/getOrDeployFuelTokenContract';
 import { validateFundgibleContracts } from './utils/validations';
 import { getMessageOutReceipt } from './utils/fuels/getMessageOutReceipt';
+import { FUEL_MESSAGE_TIMEOUT_MS, FUEL_TX_PARAMS } from './utils/constants';
 
 const TOKEN_AMOUNT = '10';
-const FUEL_MESSAGE_TIMEOUT_MS = 1_000_000;
-const FUEL_GAS_LIMIT = 500_000_000;
-const FUEL_GAS_PRICE = 1;
+
 
 // This script is a demonstration of how ERC-20 tokens are bridged to and from the Fuel chain
 (async function () {
@@ -32,11 +31,6 @@ const FUEL_GAS_PRICE = 1;
   const fuelAcctAddr = fuelAcct.address.toHexString();
   const fuelMessagePortal = env.eth.fuelMessagePortal.connect(ethAcct);
   const gatewayContract = env.eth.fuelERC20Gateway.connect(ethAcct);
-  const fuelTxParams = {
-    gasLimit: process.env.FUEL_GAS_LIMIT || FUEL_GAS_LIMIT,
-    gasPrice: process.env.FUEL_GAS_PRICE || FUEL_GAS_PRICE,
-  };
-
   ////////////////////////////////////
   // Connect/Create Token Contracts //
   ////////////////////////////////////
@@ -47,7 +41,7 @@ const FUEL_GAS_PRICE = 1;
   const ethTestToken = await getOrDeployECR20Contract(env);
 
   // load Fuel side fungible token contract
-  const fuelTestToken = await getOrDeployFuelTokenContract(env, ethTestToken, fuelTxParams);
+  const fuelTestToken = await getOrDeployFuelTokenContract(env, ethTestToken, FUEL_TX_PARAMS);
   const fuelTestTokenId = fuelTestToken.id.toHexString();
 
   // mint tokens as starting balances
@@ -102,7 +96,7 @@ const FUEL_GAS_PRICE = 1;
 
   // relay the message to the target contract
   console.log('Relaying message on Fuel...');
-  const fMessageRelayTx = await relayCommonMessage(fuelAcct, depositMessage, fuelTxParams);
+  const fMessageRelayTx = await relayCommonMessage(fuelAcct, depositMessage, FUEL_TX_PARAMS);
   const fMessageRelayTxResult = await fMessageRelayTx.waitForResult();
 
   if (fMessageRelayTxResult.status.type !== 'success') {
@@ -132,7 +126,7 @@ const FUEL_GAS_PRICE = 1;
     .callParams({
       forward: { amount: fuels_parseToken(TOKEN_AMOUNT, 9), assetId: fuelTestTokenId },
     })
-    .txParams(fuelTxParams);
+    .txParams(FUEL_TX_PARAMS);
   // scope.transactionRequest.addMessageOutputs(1);
   const fWithdrawTx = await scope.call();
   const fWithdrawTxResult = fWithdrawTx.transactionResult;

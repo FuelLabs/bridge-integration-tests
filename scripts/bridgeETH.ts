@@ -9,11 +9,9 @@ import { logETHBalances } from './utils/logs';
 import { waitForMessage } from './utils/fuels/waitForMessage';
 import { fuels_parseEther } from './utils/parsers';
 import { getMessageOutReceipt } from './utils/fuels/getMessageOutReceipt';
+import { FUEL_MESSAGE_TIMEOUT_MS, FUEL_TX_PARAMS } from './utils/constants';
 
 const ETH_AMOUNT = '0.1';
-const FUEL_MESSAGE_TIMEOUT_MS = 1_000_000;
-const FUEL_GAS_LIMIT = 500_000_000;
-const FUEL_GAS_PRICE = 1;
 
 // This script is a demonstration of how the base asset (ETH) is bridged to and from the Fuel chain
 (async function () {
@@ -28,10 +26,7 @@ const FUEL_GAS_PRICE = 1;
   const fuelAccount = env.fuel.signers[0];
   const fuelAccountAddress = fuelAccount.address.toHexString();
   const fuelMessagePortal = env.eth.fuelMessagePortal.connect(ethereumAccount);
-  const fuelTxParams = {
-    gasLimit: process.env.FUEL_GAS_LIMIT || FUEL_GAS_LIMIT,
-    gasPrice: process.env.FUEL_GAS_PRICE || FUEL_GAS_PRICE,
-  };
+
 
   /////////////////////////////
   // Bridge Ethereum -> Fuel //
@@ -82,7 +77,7 @@ const FUEL_GAS_PRICE = 1;
   const fWithdrawTx = await fuelAccount.withdrawToBaseLayer(
     Address.fromString(ethereumAccountAddress),
     fuels_parseEther(ETH_AMOUNT),
-    fuelTxParams
+    FUEL_TX_PARAMS
   );
   const fWithdrawTxResult = await fWithdrawTx.waitForResult();
   if (fWithdrawTxResult.status.type !== 'success') {
