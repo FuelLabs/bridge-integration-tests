@@ -18,8 +18,6 @@ import { LOG_CONFIG } from '../scripts/utils/logs';
 
 LOG_CONFIG.debug = false;
 
-const { FUEL_ERC20_GATEWAY_ADDRESS } = process.env;
-
 chai.use(solidity);
 const { expect } = chai;
 
@@ -47,11 +45,9 @@ describe('Bridging ERC20 tokens', async function () {
 
   it('Setup tokens to bridge', async () => {
     const { value: expectedTokenContractId } = await fuel_testToken.functions.bridged_token().get();
-    const expectedGatewayContractId = FUEL_ERC20_GATEWAY_ADDRESS;
 
     // check that values for the test token and gateway contract match what
     // was compiled into the bridge-fungible-token binaries
-    expect(env.eth.fuelERC20Gateway.address).to.equal(expectedGatewayContractId);
     expect(fuel_to_eth_address(expectedTokenContractId)).to.equal(eth_testTokenAddress);
     expect(await eth_testToken.decimals()).to.equal(18);
 

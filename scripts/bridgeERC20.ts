@@ -4,7 +4,6 @@ import { ethers_parseToken, fuels_parseToken } from './utils/parsers';
 import { waitForMessage } from './utils/fuels/waitForMessage';
 import { relayCommonMessage } from './utils/fuels/relayCommonMessage';
 import { logETHBalances, logTokenBalances } from './utils/logs';
-import { getMessageProof } from './utils/fuels/getMessageProof';
 import { waitNextBlock } from './utils/fuels/waitNextBlock';
 import { createRelayMessageParams } from './utils/ethers/createRelayParams';
 import { commitBlock, mockFinalization } from './utils/ethers/commitBlock';

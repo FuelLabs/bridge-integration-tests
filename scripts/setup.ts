@@ -130,21 +130,21 @@ export async function setupEnvironment(opts: SetupOptions): Promise<TestEnvironm
   }
 
   // Get contract addresses
-  let eth_fuelChainConsensusAddress: string = fuel_chain_consensus_addr;
+  let eth_fuelChainStateAddress: string = fuel_chain_consensus_addr;
   let eth_fuelMessagePortalAddress: string = fuel_message_portal_addr;
   let eth_fuelERC20GatewayAddress: string = fuel_erc20_gateway_addr;
-  if (!eth_fuelChainConsensusAddress || !eth_fuelMessagePortalAddress || !eth_fuelERC20GatewayAddress) {
+  if (!eth_fuelChainStateAddress || !eth_fuelMessagePortalAddress || !eth_fuelERC20GatewayAddress) {
     let deployerAddresses: any = null;
     try {
       deployerAddresses = (await axios.get(http_deployer + '/deployments.local.json')).data;
     } catch (e) {
       throw new Error('Failed to connect to the deployer at (' + http_deployer + "). Are you sure it's running?");
     }
-    if (!eth_fuelChainConsensusAddress) {
-      if (!deployerAddresses.FuelChainConsensus) {
-        throw new Error('Failed to get FuelChainConsensus address from deployer');
+    if (!eth_fuelChainStateAddress) {
+      if (!deployerAddresses.FuelChainState) {
+        throw new Error('Failed to get FuelChainState address from deployer');
       }
-      eth_fuelChainConsensusAddress = deployerAddresses.FuelChainConsensus;
+      eth_fuelChainStateAddress = deployerAddresses.FuelChainState;
     }
     if (!eth_fuelMessagePortalAddress) {
       if (!deployerAddresses.FuelMessagePortal) {
@@ -161,8 +161,8 @@ export async function setupEnvironment(opts: SetupOptions): Promise<TestEnvironm
   }
 
   // Connect existing contracts
-  let eth_fuelChainConsensus: FuelChainState = FuelChainState__factory.connect(
-    eth_fuelChainConsensusAddress,
+  let eth_fuelChainState: FuelChainState = FuelChainState__factory.connect(
+    eth_fuelChainStateAddress,
     eth_deployer
   );
   let eth_fuelMessagePortal: FuelMessagePortal = FuelMessagePortal__factory.connect(
@@ -179,7 +179,7 @@ export async function setupEnvironment(opts: SetupOptions): Promise<TestEnvironm
     eth: {
       provider: eth_provider,
       jsonRPC: http_ethereum_client,
-      fuelChainState: eth_fuelChainConsensus,
+      fuelChainState: eth_fuelChainState,
       fuelMessagePortal: eth_fuelMessagePortal,
       fuelERC20Gateway: eth_fuelERC20Gateway,
       deployer: eth_deployer,
