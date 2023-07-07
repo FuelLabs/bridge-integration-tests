@@ -1,4 +1,4 @@
-import { ContractFactory, TxParams } from 'fuels';
+import { ContractFactory, TxParams, bn } from 'fuels';
 import { join } from 'path';
 import { readFileSync } from 'fs';
 import { TestEnvironment } from '../../setup';
@@ -6,6 +6,7 @@ import { Token } from '../../../fuel-v2-contracts/Token.d';
 import { Contract, hexlify } from 'fuels';
 
 import FuelFungibleTokenContractABI_json from '../../../bridge-fungible-token/bridge_fungible_token-abi.json';
+import { debug } from '../logs';
 const FuelBytecodeToken = readFileSync(join(__dirname, '../../../bridge-fungible-token/bridge_fungible_token.bin'));
 
 const { FUEL_FUNGIBLE_TOKEN_ADDRESS } = process.env;
@@ -22,29 +23,42 @@ export async function getOrDeployFuelTokenContract(env: TestEnvironment, ethTest
       await fuelTestToken.functions.name().dryRun();
     } catch (e) {
       fuelTestToken = null;
-      console.log(
+      debug(
         `The Fuel fungible token contract could not be found at the provided address ${FUEL_FUNGIBLE_TOKEN_ADDRESS}.`
       );
     }
   }
   if (!fuelTestToken) {
-    console.log(`Creating Fuel fungible token contract to test with...`);
+    debug(`Creating Fuel fungible token contract to test with...`);
     let bytecodeHex = hexlify(FuelBytecodeToken);
-    console.log('Replace ECR20 contract id');
+    debug('Replace ECR20 contract id');
     // TODO: change this to use Contract Configurables
     bytecodeHex = bytecodeHex.replace('96c53cd98b7297564716a8f2e1de2c83928af2fe', tokenGetWay);
     bytecodeHex = bytecodeHex.replace('00000000000000000000000000000000deadbeef', tokenAddress);
-    console.log('Deploy contract on Fuel');
+    debug('Deploy contract on Fuel');
     const factory = new ContractFactory(bytecodeHex, FuelFungibleTokenContractABI_json, env.fuel.deployer);
-    fuelTestToken = await factory.deployContract({
+
+    const { contractId, transactionRequest } = factory.createTransactionRequest({
       ...fuelTxParams,
       storageSlots: [],
     });
-    console.log(`Fuel fungible token contract created at ${fuelTestToken.id.toHexString()}.`);
+    // This for avoiding transaction for failing because of insufficient funds
+    // The current fund method only accounts for a static gas fee that is not
+    // enough for deploying a contract
+    transactionRequest.gasPrice = bn(100_000);
+    await fuelAcct.fund(transactionRequest);
+    // Chnage gas price back to the original value provided via params
+    transactionRequest.gasPrice = bn(fuelTxParams.gasPrice);
+    // send transaction
+    const response = await fuelAcct.sendTransaction(transactionRequest);
+    await response.wait();
+    // create contract instance
+    fuelTestToken = new Contract(contractId, factory.interface, factory.account);
+    debug(`Fuel fungible token contract created at ${fuelTestToken.id.toHexString()}.`);
   }
   fuelTestToken.account = fuelAcct;
   const fuelTestTokenId = fuelTestToken.id.toHexString();
-  console.log(`Testing with Fuel fungible token contract at ${fuelTestTokenId}.`);
+  debug(`Testing with Fuel fungible token contract at ${fuelTestTokenId}.`);
 
   return fuelTestToken;
 }

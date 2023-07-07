@@ -1,8 +1,7 @@
 import { parseEther } from 'ethers/lib/utils';
-import { Address, BN, ReceiptType, TransactionResultMessageOutReceipt } from 'fuels';
+import { Address, BN } from 'fuels';
 import { TestEnvironment, setupEnvironment } from '../scripts/setup';
 import { createRelayMessageParams } from './utils/ethers/createRelayParams';
-import { getMessageProof } from './utils/fuels/getMessageProof';
 import { commitBlock, mockFinalization } from './utils/ethers/commitBlock';
 import { waitNextBlock } from './utils/fuels/waitNextBlock';
 import { logETHBalances } from './utils/logs';
@@ -26,7 +25,6 @@ const ETH_AMOUNT = '0.1';
   const fuelAccount = env.fuel.signers[0];
   const fuelAccountAddress = fuelAccount.address.toHexString();
   const fuelMessagePortal = env.eth.fuelMessagePortal.connect(ethereumAccount);
-
 
   /////////////////////////////
   // Bridge Ethereum -> Fuel //
@@ -98,8 +96,7 @@ const ETH_AMOUNT = '0.1';
   // const withdrawMessageProof = await env.fuel.provider.getMessageProof(
   //   fWithdrawTx.id, messageOutReceipt.messageId, lastBlockId
   // );
-  const withdrawMessageProof = await getMessageProof(
-    env.fuel.provider.url,
+  const withdrawMessageProof = await fuelAccount.provider.getMessageProof(
     fWithdrawTx.id,
     messageOutReceipt.messageId,
     lastBlockId

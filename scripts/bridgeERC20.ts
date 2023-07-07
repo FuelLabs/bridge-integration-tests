@@ -1,6 +1,5 @@
-import { ReceiptType } from 'fuels';
 import { TestEnvironment, setupEnvironment } from '../scripts/setup';
-import { Address, BN, TransactionResultMessageOutReceipt } from 'fuels';
+import { Address, BN } from 'fuels';
 import { ethers_parseToken, fuels_parseToken } from './utils/parsers';
 import { waitForMessage } from './utils/fuels/waitForMessage';
 import { relayCommonMessage } from './utils/fuels/relayCommonMessage';
@@ -16,7 +15,6 @@ import { getMessageOutReceipt } from './utils/fuels/getMessageOutReceipt';
 import { FUEL_MESSAGE_TIMEOUT_MS, FUEL_TX_PARAMS } from './utils/constants';
 
 const TOKEN_AMOUNT = '10';
-
 
 // This script is a demonstration of how ERC-20 tokens are bridged to and from the Fuel chain
 (async function () {
@@ -143,8 +141,7 @@ const TOKEN_AMOUNT = '10';
   console.log('Building message proof...');
   const messageOutReceipt = getMessageOutReceipt(fWithdrawTxResult.receipts);
 
-  const withdrawMessageProof = await getMessageProof(
-    env.fuel.provider.url,
+  const withdrawMessageProof = await fuelAcct.provider.getMessageProof(
     fWithdrawTx.transactionId,
     messageOutReceipt.messageId,
     lastBlockId

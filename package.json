@@ -6,7 +6,7 @@
   "private": false,
   "license": "UNLICENSED",
   "scripts": {
-    "test": "npx mocha -r ts-node/register 'tests/**/*.ts'",
+    "test": "npx mocha -b -r ts-node/register 'tests/**/*.ts'",
     "bridgeETH": "npx ts-node scripts/bridgeETH.ts",
     "bridgeERC20": "npx ts-node scripts/bridgeERC20.ts",
     "prettier:check": "prettier --check ./",

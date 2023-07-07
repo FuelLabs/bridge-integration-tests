@@ -15,15 +15,17 @@ import {
 } from 'fuels';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { debug } from '../logs';
 
-const brigdePredicateBytecode = readFileSync(join(__dirname, '../../../bridge-message-predicates/contract_message_predicate.bin'));
-const brigdeScriptBytecode = readFileSync(join(__dirname, '../../../bridge-message-predicates/contract_message_script.bin'));
+const brigdePredicateBytecode = readFileSync(
+  join(__dirname, '../../../bridge-message-predicates/contract_message_predicate.bin')
+);
+const brigdeScriptBytecode = readFileSync(
+  join(__dirname, '../../../bridge-message-predicates/contract_message_script.bin')
+);
 
 // Create a predicate contract for common messages
-const predicate = new Predicate(
-  hexlify(brigdePredicateBytecode),
-  0
-);
+const predicate = new Predicate(hexlify(brigdePredicateBytecode), 0);
 
 // Details for relaying common messages with certain predicate roots
 const COMMON_RELAYABLE_MESSAGES: CommonMessageDetails[] = [
@@ -44,9 +46,7 @@ const COMMON_RELAYABLE_MESSAGES: CommonMessageDetails[] = [
       const predicate = arrayify(details.predicate);
 
       // find a UTXO that can cover gas costs
-      let coins = (await relayer.getCoins()).filter(
-        (coin) => coin.assetId == ZeroBytes32 && coin.amount.gt(minGas)
-      );
+      let coins = (await relayer.getCoins()).filter((coin) => coin.assetId == ZeroBytes32 && coin.amount.gt(minGas));
       if (coins.length == 0) throw new Error('wallet has no single UTXO that can cover gas costs');
       let gas_coin = coins[0];
 
@@ -95,12 +95,11 @@ const COMMON_RELAYABLE_MESSAGES: CommonMessageDetails[] = [
       });
       transaction.witnesses.push('0x');
 
-      console.log("-------------------------------------------------------------------");
-      console.log(transaction.inputs);
-      console.log("-------------------------------------------------------------------");
-      console.log(transaction.outputs);
-      console.log("-------------------------------------------------------------------");
-      
+      debug('-------------------------------------------------------------------');
+      debug(transaction.inputs);
+      debug('-------------------------------------------------------------------');
+      debug(transaction.outputs);
+      debug('-------------------------------------------------------------------');
 
       return transaction;
     },

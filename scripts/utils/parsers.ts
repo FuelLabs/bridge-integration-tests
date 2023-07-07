@@ -1,12 +1,8 @@
 /// @dev The Fuel testing utils.
 /// A set of useful helper methods for the integration test environment.
 import { ethers, BigNumber } from 'ethers';
-import {
-  BN,
-  bn,
-} from 'fuels';
+import { BN } from 'fuels';
 import { ETHEREUM_ETH_DECIMALS, FUEL_ETH_DECIMALS } from './constants';
-
 
 // Parse ETH value as a string
 export function fuels_parseEther(ether: string): BN {
@@ -46,4 +42,8 @@ export function ethers_parseToken(value: string, decimals: number = 18): BigNumb
 export function ethers_formatToken(value: BigNumber, decimals: number = 18): string {
   value = value.mul(10 ** (ETHEREUM_ETH_DECIMALS - decimals));
   return ethers.utils.formatEther(value);
+}
+
+export function fuel_to_eth_address(address: string): string {
+  return `0x${address.substring(26)}`.toLowerCase();
 }

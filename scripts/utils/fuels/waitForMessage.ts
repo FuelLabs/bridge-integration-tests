@@ -1,14 +1,8 @@
 /// @dev The Fuel testing utils.
 /// A set of useful helper methods for the integration test environment.
-import {
-  Provider as FuelProvider,
-  BN,
-  AbstractAddress,
-  Message,
-} from 'fuels';
+import { Provider as FuelProvider, BN, AbstractAddress, Message } from 'fuels';
 import { FUEL_MESSAGE_POLL_MS } from '../constants';
 import { delay } from '../delay';
-
 
 // Wait until a message is present in the fuel client
 export async function waitForMessage(

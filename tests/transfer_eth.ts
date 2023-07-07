@@ -2,14 +2,12 @@ import chai from 'chai';
 import { solidity } from 'ethereum-waffle';
 import { BigNumber, Signer } from 'ethers';
 import { parseEther } from 'ethers/lib/utils';
-import { AbstractAddress, Address, BN, WalletUnlocked as FuelWallet, NativeAssetId } from 'fuels';
+import { AbstractAddress, Address, BN, WalletUnlocked as FuelWallet, NativeAssetId, MessageProof } from 'fuels';
 import { TestEnvironment, setupEnvironment } from '../scripts/setup';
 import { fuels_parseEther } from '../scripts/utils/parsers';
 import { createRelayMessageParams } from '../scripts/utils/ethers/createRelayParams';
 import { waitNextBlock } from '../scripts/utils/fuels/waitNextBlock';
 import { getMessageOutReceipt } from '../scripts/utils/fuels/getMessageOutReceipt';
-import { getMessageProof } from '../scripts/utils/fuels/getMessageProof';
-import { MessageProof } from '../scripts/types';
 import { waitForMessage } from '../scripts/utils/fuels/waitForMessage';
 import { FUEL_TX_PARAMS } from '../scripts/utils/constants';
 import { commitBlock, mockFinalization } from '../scripts/utils/ethers/commitBlock';
@@ -114,8 +112,7 @@ describe('Transferring ETH', async function () {
 
       // get message proof
       const messageOutReceipt = getMessageOutReceipt(fWithdrawTxResult.receipts);
-      withdrawMessageProof = await getMessageProof(
-        env.fuel.provider.url,
+      withdrawMessageProof = await fuelETHSender.provider.getMessageProof(
         fWithdrawTx.id,
         messageOutReceipt.messageId,
         lastBlockId
