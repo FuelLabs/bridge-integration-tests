@@ -51,8 +51,8 @@ query {
     }
 }`;
 
-export async function getMessageProof(transactionId: string, messageId: string, blockId: string) {
-    const result = await fetch('http://localhost:4000/graphql', {
+export async function getMessageProof(providerUrl: string, transactionId: string, messageId: string, blockId: string) {
+    const result = await fetch(providerUrl, {
       method: 'POST',
       body: JSON.stringify({
         query: createQuery(transactionId, messageId, blockId),
@@ -61,6 +61,10 @@ export async function getMessageProof(transactionId: string, messageId: string, 
         'Content-Type': 'application/json',
       }
     }).then(res => res.json());
+
+    if (result.errors) {
+        throw new Error(result.errors.map((e: any) => e.message).join('\n'));
+    }
 
     return result.data.messageProof as MessageProof;
 }

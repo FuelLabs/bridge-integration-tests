@@ -1,50 +1,34 @@
-import { ContractFactory } from '@fuel-ts/contract';
+import { ContractFactory, InputMessageCoder, ReceiptType } from 'fuels';
 import { join } from 'path';
 import { readFileSync } from 'fs';
 import { TestEnvironment, setupEnvironment } from '../scripts/setup';
 import { Token } from '../fuel-v2-contracts/Token.d';
 import { Token__factory } from '../fuel-v2-contracts/factories/Token__factory';
-import FuelFungibleTokenContractABI_json from '../bridge-fungible-token/bridge_fungible_token-abi.json';
-import { Address, BN, Contract, TransactionResultMessageOutReceipt } from 'fuels';
+import { Address, BN, Contract, TransactionResultMessageOutReceipt, hexlify } from 'fuels';
 import { ethers_parseToken, fuels_parseToken } from './utils/parsers';
 import { waitForMessage } from './utils/fuels/waitForMessage';
 import { relayCommonMessage } from './utils/fuels/relayCommonMessage';
-import { logTokenBalances } from './utils/logs';
+import { logETHBalances, logTokenBalances } from './utils/logs';
 import { getMessageProof } from './utils/fuels/getMessageProof';
 import { waitNextBlock } from './utils/fuels/waitNextBlock';
 import { createRelayMessageParams } from './utils/ethers/createRelayParams';
 import { commitBlock, mockFinalization } from './utils/ethers/commitBlock';
 
+import FuelFungibleTokenContractABI_json from '../bridge-fungible-token/bridge_fungible_token-abi.json';
+const FuelBytecodeToken = readFileSync(join(__dirname, '../bridge-fungible-token/bridge_fungible_token.bin'));
+
 const TOKEN_AMOUNT = '10';
 const FUEL_MESSAGE_TIMEOUT_MS = 1_000_000;
 const FUEL_GAS_LIMIT = 500_000_000;
 const FUEL_GAS_PRICE = 1;
-const ETH_ERC20_TOKEN_ADDRESS = process.env.ETH_ERC20_TOKEN_ADDRESS || '0x0165878A594ca255338adfa4d48449f69242Eb8F';
-const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '';
+const ETH_ERC20_TOKEN_ADDRESS = process.env.ETH_ERC20_TOKEN_ADDRESS;
+const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS;
 
-// This script is a demonstration of how ERC-20 tokens are bridged to and from the Fuel chain
-(async function () {
-  // basic setup routine which creates the connections (the "providers") to both chains,
-  // funds addresses for us to test with and populates the official contract deployments
-  // on the Ethereum chain for interacting with the Fuel chain
+async function getOrDeployECR20Contract(env: TestEnvironment) {
   console.log('Setting up environment...');
-  const env: TestEnvironment = await setupEnvironment({});
   const ethDeployer = env.eth.deployer;
   const ethDeployerAddr = await ethDeployer.getAddress();
   const ethAcct = env.eth.signers[1];
-  const ethAcctAddr = await ethAcct.getAddress();
-  const fuelAcct = env.fuel.signers[1];
-  const fuelAcctAddr = fuelAcct.address.toHexString();
-  const fuelMessagePortal = env.eth.fuelMessagePortal.connect(ethAcct);
-  const gatewayContract = env.eth.fuelERC20Gateway.connect(ethAcct);
-  const fuelTxParams = {
-    gasLimit: process.env.FUEL_GAS_LIMIT || FUEL_GAS_LIMIT,
-    gasPrice: process.env.FUEL_GAS_PRICE || FUEL_GAS_PRICE,
-  };
-
-  ////////////////////////////////////
-  // Connect/Create Token Contracts //
-  ////////////////////////////////////
 
   // load ERC20 contract
   let ethTestToken: Token = null;
@@ -74,7 +58,18 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
   const ethTestTokenAddress = ethTestToken.address;
   console.log(`Testing with Ethereum ERC-20 token contract at ${ethTestTokenAddress}.`);
 
-  // load Fuel side fungible token contract
+  return ethTestToken;
+}
+
+async function getOrDeployFuelTokenContract(env: TestEnvironment, ethTestToken: Token) {
+  const tokenGetWay = env.eth.fuelERC20Gateway.address.replace('0x', '');
+  const tokenAddress = ethTestToken.address.replace('0x', '');
+  const fuelAcct = env.fuel.signers[1];
+  const fuelTxParams = {
+    gasLimit: process.env.FUEL_GAS_LIMIT || FUEL_GAS_LIMIT,
+    gasPrice: process.env.FUEL_GAS_PRICE || FUEL_GAS_PRICE,
+  };
+
   let fuelTestToken: Contract = null;
   if (FUEL_FUNGIBLE_TOKEN_ADDRESS) {
     try {
@@ -89,50 +84,103 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
   }
   if (!fuelTestToken) {
     console.log(`Creating Fuel fungible token contract to test with...`);
-    const bytecode = readFileSync(join(__dirname, '../bridge-fungible-token/bridge_fungible_token.bin'));
-    const factory = new ContractFactory(bytecode, FuelFungibleTokenContractABI_json, env.fuel.deployer);
-    fuelTestToken = await factory.deployContract(fuelTxParams);
+    let bytecodeHex = hexlify(FuelBytecodeToken);
+    console.log('Replace ECR20 contract id');
+    // TODO: change this to use Contract Configurables
+    bytecodeHex = bytecodeHex.replace('96c53cd98b7297564716a8f2e1de2c83928af2fe', tokenGetWay);
+    bytecodeHex = bytecodeHex.replace('00000000000000000000000000000000deadbeef', tokenAddress);
+    console.log('Deploy contract on Fuel');
+    const factory = new ContractFactory(bytecodeHex, FuelFungibleTokenContractABI_json, env.fuel.deployer);
+    fuelTestToken = await factory.deployContract({
+      ...fuelTxParams,
+      storageSlots: [],
+    });
     console.log(`Fuel fungible token contract created at ${fuelTestToken.id.toHexString()}.`);
   }
   fuelTestToken.account = fuelAcct;
   const fuelTestTokenId = fuelTestToken.id.toHexString();
   console.log(`Testing with Fuel fungible token contract at ${fuelTestTokenId}.`);
 
-  // mint tokens as starting balances
+  return fuelTestToken;
+}
+
+async function mintECR20(env: TestEnvironment, ethTestToken: Token, ethAcctAddr: string) {
   if ((await ethTestToken.balanceOf(ethAcctAddr)) <= ethers_parseToken(TOKEN_AMOUNT, 18).mul(2)) {
     console.log(`Minting ERC-20 tokens to test with...`);
     const tokenMintTx1 = await ethTestToken.connect(env.eth.deployer).mint(ethAcctAddr, ethers_parseToken('100', 18));
     await tokenMintTx1.wait();
   }
-  console.log('');
+}
+
+// This script is a demonstration of how ERC-20 tokens are bridged to and from the Fuel chain
+(async function () {
+  // basic setup routine which creates the connections (the "providers") to both chains,
+  // funds addresses for us to test with and populates the official contract deployments
+  // on the Ethereum chain for interacting with the Fuel chain
+  console.log('Setting up environment...');
+  const env: TestEnvironment = await setupEnvironment({});
+  const ethAcct = env.eth.signers[1];
+  const ethAcctAddr = await ethAcct.getAddress();
+  const fuelAcct = env.fuel.signers[1];
+  const fuelAcctAddr = fuelAcct.address.toHexString();
+  const fuelMessagePortal = env.eth.fuelMessagePortal.connect(ethAcct);
+  const gatewayContract = env.eth.fuelERC20Gateway.connect(ethAcct);
+  const fuelTxParams = {
+    gasLimit: process.env.FUEL_GAS_LIMIT || FUEL_GAS_LIMIT,
+    gasPrice: process.env.FUEL_GAS_PRICE || FUEL_GAS_PRICE,
+  };
+
+  ////////////////////////////////////
+  // Connect/Create Token Contracts //
+  ////////////////////////////////////
+
+  await logETHBalances(ethAcct, fuelAcct);
+
+  // load ERC20 contract
+  const ethTestToken = await getOrDeployECR20Contract(env);
+  const ethTestTokenAddress = ethTestToken.address;
+
+  // load Fuel side fungible token contract
+  const fuelTestToken = await getOrDeployFuelTokenContract(env, ethTestToken);
+  const fuelTestTokenId = fuelTestToken.id.toHexString();
+
+  // mint tokens as starting balances
+  await mintECR20(env, ethTestToken, ethAcctAddr);
+  await logTokenBalances(ethTestToken, ethAcct, fuelAcct, fuelTestTokenId);
 
   // verify compatability between the two token contracts
   const l1Decimals = parseInt('' + (await fuelTestToken.functions.bridged_token_decimals().dryRun()).value);
   const expectedL1Decimals = parseInt('' + (await ethTestToken.decimals()));
   if (l1Decimals != expectedL1Decimals) {
     throw new Error(
-      `L1 decimals from the Fuel token contract does not match the actual L1 decimals [expected:${expectedL1Decimals}, actual:${l1Decimals}].`
+      [
+        'L1 decimals from the Fuel token contract does not match the actual L1 decimals.',
+        `[expected:${expectedL1Decimals}, actual:${l1Decimals}].`,
+      ].join(' ')
     );
   }
   const l1Token = '0x' + (await fuelTestToken.functions.bridged_token().dryRun()).value.substring(26);
   if (l1Token.toLowerCase() != ethTestTokenAddress.toLowerCase()) {
     throw new Error(
-      `L1 token address from the Fuel token contract does not match the actual L1 token address [expected:${ethTestTokenAddress}, actual:${l1Token}].`
+      [
+        'L1 token address from the Fuel token contract does not match the actual L1 token address.',
+        `[expected:${ethTestTokenAddress}, actual:${l1Token}]`,
+      ].join(' ')
     );
   }
   const l1Gateway = '0x' + (await fuelTestToken.functions.bridged_token_gateway().dryRun()).value.substring(26);
   if (l1Gateway.toLowerCase() != env.eth.fuelERC20Gateway.address.toLowerCase()) {
     throw new Error(
-      `L1 token gateway address from the Fuel token contract does not match the actual L1 token gateway address [expected:${env.eth.fuelERC20Gateway.address}, actual:${l1Gateway}].`
+      [
+        'L1 token gateway address from the Fuel token contract does not match the actual L1 token gateway address',
+        `[expected:${env.eth.fuelERC20Gateway.address}, actual:${l1Gateway}].`,
+      ].join(' ')
     );
   }
 
   /////////////////////////////
   // Bridge Ethereum -> Fuel //
   /////////////////////////////
-
-  // note balances of both accounts before transfer
-  await logTokenBalances(ethTestToken, ethAcct, fuelAcct, fuelTestTokenId);
 
   // approve fuel erc20 gateway to spend the tokens
   console.log('Approving Tokens for gateway...');
@@ -177,7 +225,9 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
   console.log('Relaying message on Fuel...');
   const fMessageRelayTx = await relayCommonMessage(fuelAcct, depositMessage, fuelTxParams);
   const fMessageRelayTxResult = await fMessageRelayTx.waitForResult();
+
   if (fMessageRelayTxResult.status.type !== 'success') {
+    console.log(fMessageRelayTxResult.status.reason);
     console.log(fMessageRelayTxResult);
     console.log(fMessageRelayTxResult.transaction.inputs);
     console.log(fMessageRelayTxResult.transaction.outputs);
@@ -218,12 +268,15 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
 
   // get message proof for relaying on Ethereum
   console.log('Building message proof...');
-  const messageOutReceipt = <TransactionResultMessageOutReceipt>fWithdrawTxResult.receipts[0];
+  const messageOutReceipt = fWithdrawTxResult.receipts.find(
+    (r) => r.type === ReceiptType.MessageOut
+  ) as TransactionResultMessageOutReceipt;
 
   const withdrawMessageProof = await getMessageProof(
+    env.fuel.provider.url,
     fWithdrawTx.transactionId,
     messageOutReceipt.messageId,
-    lastBlockId,
+    lastBlockId
   );
   const relayMessageParams = createRelayMessageParams(withdrawMessageProof);
 
@@ -254,31 +307,3 @@ const FUEL_FUNGIBLE_TOKEN_ADDRESS = process.env.FUEL_FUNGIBLE_TOKEN_ADDRESS || '
   // note balances of both accounts after transfer
   await logTokenBalances(ethTestToken, ethAcct, fuelAcct, fuelTestTokenId);
 })();
-
-// The BlockHeader structure.
-class BlockHeader {
-  constructor(
-    // Consensus
-    public prevRoot: string,
-    public height: string,
-    public timestamp: string,
-
-    // Application
-    public daHeight: string,
-    public txCount: string,
-    public outputMessagesCount: string,
-    public txRoot: string,
-    public outputMessagesRoot: string
-  ) {}
-}
-
-// The MessageOut structure.
-class MessageOut {
-  constructor(
-    public sender: string,
-    public recipient: string,
-    public amount: string,
-    public nonce: string,
-    public data: string
-  ) {}
-}

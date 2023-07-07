@@ -11,17 +11,27 @@ import {
   hexlify,
   OutputType,
   TransactionResponse,
+  Predicate,
 } from 'fuels';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
+const brigdePredicateBytecode = readFileSync(join(__dirname, '../../../bridge-message-predicates/contract_message_predicate.bin'));
+const brigdeScriptBytecode = readFileSync(join(__dirname, '../../../bridge-message-predicates/contract_message_script.bin'));
+
+// Create a predicate contract for common messages
+const predicate = new Predicate(
+  hexlify(brigdePredicateBytecode),
+  0
+);
 
 // Details for relaying common messages with certain predicate roots
 const COMMON_RELAYABLE_MESSAGES: CommonMessageDetails[] = [
   {
     name: 'Message To Contract v1.3',
-    predicateRoot: '0x6767333817034bfdf74f68bfdb4130438e7ce65a9e4cbadba6b490a265f094dc',
-    predicate:
-      '0x1A405000910000206144000B6148000540411480504CC04C72580020295134165B501012615C000772680002595D7001616171015B61A0106165711A5B6400125B5C100B2404000024000000664E627BFC0DB0BFA8F182EFC913B552681143E328B555D9697C40AD0EB527AD',
-    script: '0x1A40500091000050504500205049102461540117614C011D5050C02C60453020604940042D45540A240000009532D7AE',
+    predicateRoot: predicate.address.toHexString(),
+    predicate: hexlify(brigdePredicateBytecode),
+    script: hexlify(brigdeScriptBytecode),
     buildTx: async (
       relayer: FuelWallet,
       message: Message,
@@ -53,7 +63,7 @@ const COMMON_RELAYABLE_MESSAGES: CommonMessageDetails[] = [
         sender: message.sender.toHexString(),
         recipient: message.recipient.toHexString(),
         witnessIndex: 0,
-        // data: message.data,
+        data: message.data,
         nonce: message.nonce,
         predicate: predicate,
       });

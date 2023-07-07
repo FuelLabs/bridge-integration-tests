@@ -1,5 +1,5 @@
 import { parseEther } from 'ethers/lib/utils';
-import { Address, BN, TransactionResultMessageOutReceipt } from 'fuels';
+import { Address, BN, ReceiptType, TransactionResultMessageOutReceipt } from 'fuels';
 import { TestEnvironment, setupEnvironment } from '../scripts/setup';
 import { createRelayMessageParams } from './utils/ethers/createRelayParams';
 import { getMessageProof } from './utils/fuels/getMessageProof';
@@ -95,7 +95,9 @@ const FUEL_GAS_PRICE = 1;
 
   // get message proof for relaying on Ethereum
   console.log('Building message proof...');
-  const messageOutReceipt = <TransactionResultMessageOutReceipt>fWithdrawTxResult.receipts[0];
+  const messageOutReceipt = fWithdrawTxResult.receipts.find(
+    (r) => r.type === ReceiptType.MessageOut
+  ) as TransactionResultMessageOutReceipt;
 
   // TODO: use the getMessageProof function from fuel-ts instead once it's updated with
   // the new message proof data
@@ -103,7 +105,10 @@ const FUEL_GAS_PRICE = 1;
   //   fWithdrawTx.id, messageOutReceipt.messageId, lastBlockId
   // );
   const withdrawMessageProof = await getMessageProof(
-    fWithdrawTx.id, messageOutReceipt.messageId, lastBlockId
+    env.fuel.provider.url,
+    fWithdrawTx.id,
+    messageOutReceipt.messageId,
+    lastBlockId
   );
   const relayMessageParams = createRelayMessageParams(withdrawMessageProof);
 

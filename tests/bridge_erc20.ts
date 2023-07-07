@@ -71,7 +71,7 @@ describe.skip('Bridging ERC20 tokens', async function () {
     // TODO: use config time values in sway contracts so we don't have to hardcode
     // these values and can create a new test token contract each time
     const expectedGatewayContractId = '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707';
-    const expectedTokenContractId = '0x0165878A594ca255338adfa4d48449f69242Eb8F';
+    const expectedTokenContractId = '0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1';
 
     // create test ERC20 contract
     try {
