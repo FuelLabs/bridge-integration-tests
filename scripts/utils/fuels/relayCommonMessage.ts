@@ -12,10 +12,17 @@ import {
   OutputType,
   TransactionResponse,
   Predicate,
+  bn,
+  isCoin,
+  Coin,
+  InputCoin,
+  TransactionRequestInput,
+  MAX_GAS_PER_TX,
 } from 'fuels';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { debug } from '../logs';
+import { resourcesToInputs } from './transaction';
 
 const brigdePredicateBytecode = readFileSync(
   join(__dirname, '../../../bridge-message-predicates/contract_message_predicate.bin')
@@ -24,7 +31,7 @@ const brigdeScriptBytecode = readFileSync(
   join(__dirname, '../../../bridge-message-predicates/contract_message_script.bin')
 );
 
-// Create a predicate contract for common messages
+// Create a predicate for common messages
 const predicate = new Predicate(hexlify(brigdePredicateBytecode), 0);
 
 // Details for relaying common messages with certain predicate roots
@@ -40,15 +47,15 @@ const COMMON_RELAYABLE_MESSAGES: CommonMessageDetails[] = [
       details: CommonMessageDetails,
       txParams: Pick<TransactionRequestLike, 'gasLimit' | 'gasPrice' | 'maturity'>
     ): Promise<ScriptTransactionRequest> => {
-      //TODO: minGas should be much lower and more in line with what the predicate actually verifies (currently 1200000)
-      const minGas: number = 500000000000;
       const script = arrayify(details.script);
       const predicate = arrayify(details.predicate);
-
-      // find a UTXO that can cover gas costs
-      let coins = (await relayer.getCoins()).filter((coin) => coin.assetId == ZeroBytes32 && coin.amount.gt(minGas));
-      if (coins.length == 0) throw new Error('wallet has no single UTXO that can cover gas costs');
-      let gas_coin = coins[0];
+      // get resources to fund the transaction
+      const resources = await relayer.getResourcesToSpend([{
+        amount: bn.parseUnits('5'),
+        assetId: ZeroBytes32,
+      }]);
+      // convert resources to inputs
+      const coins = resourcesToInputs(resources);
 
       // get contract id
       const data = arrayify(message.data);
@@ -56,7 +63,7 @@ const COMMON_RELAYABLE_MESSAGES: CommonMessageDetails[] = [
       const contractId = hexlify(data.slice(0, 32));
 
       // build the transaction
-      const transaction = new ScriptTransactionRequest({ script, gasLimit: minGas, ...txParams });
+      const transaction = new ScriptTransactionRequest({ script, gasLimit: MAX_GAS_PER_TX, ...txParams });
       transaction.inputs.push({
         type: InputType.Message,
         amount: message.amount,
@@ -72,22 +79,14 @@ const COMMON_RELAYABLE_MESSAGES: CommonMessageDetails[] = [
         txPointer: ZeroBytes32,
         contractId: contractId,
       });
-      transaction.inputs.push({
-        type: InputType.Coin,
-        id: gas_coin.id,
-        owner: hexlify(gas_coin.owner.toBytes()),
-        amount: gas_coin.amount,
-        assetId: ZeroBytes32,
-        txPointer: ZeroBytes32,
-        witnessIndex: 0,
-      });
+      transaction.inputs.push(...coins);
       transaction.outputs.push({
         type: OutputType.Contract,
         inputIndex: 1,
       });
       transaction.outputs.push({
         type: OutputType.Change,
-        to: hexlify(gas_coin.owner.toBytes()),
+        to: relayer.address.toB256(),
         assetId: ZeroBytes32,
       });
       transaction.outputs.push({
