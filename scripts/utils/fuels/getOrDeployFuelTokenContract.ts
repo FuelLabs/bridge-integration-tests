@@ -7,6 +7,7 @@ import { Contract, hexlify } from 'fuels';
 
 import FuelFungibleTokenContractABI_json from '../../../bridge-fungible-token/bridge_fungible_token-abi.json';
 import { debug } from '../logs';
+import { eth_address_to_b256 } from '../parsers';
 const FuelBytecodeToken = readFileSync(join(__dirname, '../../../bridge-fungible-token/bridge_fungible_token.bin'));
 
 const { FUEL_FUNGIBLE_TOKEN_ADDRESS } = process.env;
@@ -32,11 +33,14 @@ export async function getOrDeployFuelTokenContract(env: TestEnvironment, ethTest
     debug(`Creating Fuel fungible token contract to test with...`);
     let bytecodeHex = hexlify(FuelBytecodeToken);
     debug('Replace ECR20 contract id');
-    // TODO: change this to use Contract Configurables
-    bytecodeHex = bytecodeHex.replace('96c53cd98b7297564716a8f2e1de2c83928af2fe', tokenGetWay);
-    bytecodeHex = bytecodeHex.replace('00000000000000000000000000000000deadbeef', tokenAddress);
     debug('Deploy contract on Fuel');
     const factory = new ContractFactory(bytecodeHex, FuelFungibleTokenContractABI_json, env.fuel.deployer);
+
+    // Set the token gateway and token address in the contract
+    factory.setConfigurableConstants({
+      BRIDGED_TOKEN_GATEWAY: eth_address_to_b256(tokenGetWay),
+      BRIDGED_TOKEN: eth_address_to_b256(tokenAddress)
+    });
 
     const { contractId, transactionRequest } = factory.createTransactionRequest({
       ...fuelTxParams,

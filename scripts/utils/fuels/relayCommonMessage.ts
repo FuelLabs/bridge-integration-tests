@@ -126,8 +126,10 @@ export async function relayCommonMessage(
 ): Promise<TransactionResponse> {
   // find the relay details for the specified message
   let messageRelayDetails: CommonMessageDetails = null;
+  const predicateRoot = message.recipient.toHexString();
+
   for (let details of COMMON_RELAYABLE_MESSAGES) {
-    if (details.predicateRoot == message.recipient.toHexString()) {
+    if (details.predicateRoot == predicateRoot) {
       messageRelayDetails = details;
       break;
     }
