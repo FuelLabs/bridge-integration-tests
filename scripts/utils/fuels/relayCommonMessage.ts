@@ -24,7 +24,7 @@ const brigdeScriptBytecode = readFileSync(
   join(__dirname, '../../../bridge-message-predicates/contract_message_script.bin')
 );
 
-// Create a predicate contract for common messages
+// Create a predicate for common messages
 const predicate = new Predicate(hexlify(brigdePredicateBytecode), 0);
 
 // Details for relaying common messages with certain predicate roots
