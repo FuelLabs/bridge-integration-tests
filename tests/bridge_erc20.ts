@@ -150,7 +150,6 @@ describe('Bridging ERC20 tokens', async function () {
           forward: { amount: NUM_TOKENS / DECIMAL_DIFF, assetId: fuel_testTokenId },
         })
         .fundWithRequiredCoins();
-      // scope.transactionRequest.addMessageOutputs(1);
       const tx = await fuelTokenSender.sendTransaction(scope.transactionRequest);
       const fWithdrawTxResult = await tx.waitForResult();
       expect(fWithdrawTxResult.status.type).to.equal('success');
