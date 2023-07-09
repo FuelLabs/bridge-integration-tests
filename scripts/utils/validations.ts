@@ -5,8 +5,8 @@ import { TestEnvironment } from '../setup';
 export async function validateFundgibleContracts(env: TestEnvironment, fuelTestToken: Contract, ethTestToken: Token) {
   const ethTestTokenAddress = ethTestToken.address;
 
-  const l1Decimals = parseInt('' + (await fuelTestToken.functions.bridged_token_decimals().dryRun()).value);
-  const expectedL1Decimals = parseInt('' + (await ethTestToken.decimals()));
+  const l1Decimals = parseInt((await fuelTestToken.functions.bridged_token_decimals().dryRun()).value);
+  const expectedL1Decimals = parseInt(String(await ethTestToken.decimals()));
   if (l1Decimals != expectedL1Decimals) {
     throw new Error(
       [
