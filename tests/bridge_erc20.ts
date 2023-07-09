@@ -45,10 +45,12 @@ describe('Bridging ERC20 tokens', async function () {
 
   it('Setup tokens to bridge', async () => {
     const { value: expectedTokenContractId } = await fuel_testToken.functions.bridged_token().get();
+    const { value: expectedGatewayContractId } = await fuel_testToken.functions.bridged_token_gateway().get();
 
     // check that values for the test token and gateway contract match what
     // was compiled into the bridge-fungible-token binaries
     expect(fuel_to_eth_address(expectedTokenContractId)).to.equal(eth_testTokenAddress);
+    expect(fuel_to_eth_address(expectedGatewayContractId)).to.equal(env.eth.fuelERC20Gateway.address.toLowerCase());
     expect(await eth_testToken.decimals()).to.equal(18);
 
     // mint tokens as starting balances
