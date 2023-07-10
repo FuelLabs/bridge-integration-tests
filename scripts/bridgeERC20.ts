@@ -124,7 +124,6 @@ const TOKEN_AMOUNT = '10';
       forward: { amount: fuels_parseToken(TOKEN_AMOUNT, 9), assetId: fuelTestTokenId },
     })
     .txParams(FUEL_TX_PARAMS);
-  // scope.transactionRequest.addMessageOutputs(1);
   const fWithdrawTx = await scope.call();
   const fWithdrawTxResult = fWithdrawTx.transactionResult;
   if (fWithdrawTxResult.status.type !== 'success') {
