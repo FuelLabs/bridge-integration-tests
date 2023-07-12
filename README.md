@@ -1,3 +1,7 @@
+# ⚠️ Archival Notice
+
+This repo has been migrated to https://github.com/FuelLabs/fuel-bridge
+
 # Fuel Messaging Bridge Integration Tests
 
 Integration tests for the Fuel Messaging Bridge.
